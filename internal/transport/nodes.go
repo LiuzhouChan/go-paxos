@@ -1,7 +1,9 @@
 package transport
 
 import (
+	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -100,4 +102,108 @@ func (n *Nodes) AddRemoteAddress(groupID uint64,
 		}
 	}
 	n.nmu.Unlock()
+}
+
+func (n *Nodes) getConnectionKey(addr string, groupID uint64) string {
+	if n.partitioner == nil {
+		return addr
+	}
+	idx := n.partitioner.GetPartitionID(groupID)
+	return fmt.Sprintf("%s-%d", addr, idx)
+}
+
+func (n *Nodes) getAddressFromRemoteList(groupID uint64,
+	nodeID uint64) (string, error) {
+	n.nmu.Lock()
+	defer n.nmu.Unlock()
+	key := paxosio.GetNodeInfo(groupID, nodeID)
+	v, ok := n.nmu.nodes[key]
+	if !ok {
+		return "", errors.New("no address")
+	}
+	return v, nil
+}
+
+// AddNode add a new node.
+func (n *Nodes) AddNode(groupID uint64, nodeID uint64, url string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	key := paxosio.GetNodeInfo(groupID, nodeID)
+	if v, err := newAddr(url); err != nil {
+		panic(err)
+	} else {
+		if _, ok := n.mu.addr[key]; !ok {
+			rec := record{
+				address: v.String(),
+				key:     n.getConnectionKey(v.String(), groupID),
+			}
+			n.mu.addr[key] = rec
+		}
+	}
+}
+
+// RemoveNode removes a remote from the node registry.
+func (n *Nodes) RemoveNode(groupID uint64, nodeID uint64) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	key := paxosio.GetNodeInfo(groupID, nodeID)
+	delete(n.mu.addr, key)
+}
+
+// RemoveGroup removes all nodes info associated with the specified group
+func (n *Nodes) RemoveGroup(groupID uint64) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	toRemove := make([]paxosio.NodeInfo, 0)
+	for k := range n.mu.addr {
+		if k.GroupID == groupID {
+			toRemove = append(toRemove, k)
+		}
+	}
+	for _, key := range toRemove {
+		delete(n.mu.addr, key)
+	}
+}
+
+// RemoveAllPeers removes all remotes.
+func (n *Nodes) RemoveAllPeers() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.mu.addr = make(map[paxosio.NodeInfo]record)
+}
+
+// Resolve looks up the Addr of the specified node.
+func (n *Nodes) Resolve(groupID uint64, nodeID uint64) (string, string, error) {
+	key := paxosio.GetNodeInfo(groupID, nodeID)
+	n.mu.Lock()
+	addr, ok := n.mu.addr[key]
+	n.mu.Unlock()
+	if !ok {
+		na, err := n.getAddressFromRemoteList(groupID, nodeID)
+		if err != nil {
+			return "", "", errors.New("cluster id/node id not found")
+		}
+		n.AddNode(groupID, nodeID, na)
+		return na, n.getConnectionKey(na, groupID), nil
+	}
+	return addr.address, addr.key, nil
+}
+
+// ReverseResolve does the reverse lookup for the specified address. A list
+// of node raftio.NodeInfos are returned for nodes that match the specified address
+func (n *Nodes) ReverseResolve(addr string) []paxosio.NodeInfo {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	affected := make([]paxosio.NodeInfo, 0)
+	for k, v := range n.mu.addr {
+		altV := ""
+		u, err := url.Parse(v.address)
+		if err == nil {
+			altV = u.Host
+		}
+		if v.address == addr || (len(altV) > 0 && altV == addr) {
+			affected = append(affected, k)
+		}
+	}
+	return affected
 }
