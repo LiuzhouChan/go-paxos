@@ -15,6 +15,12 @@ enum MessageType {
 	PaxosAcceptReply = 4;
 }
 
+message PaxosDataStatus {
+	optional string address   = 1 [(gogoproto.nullable) = false];
+	optional uint32 bin_ver   = 2 [(gogoproto.nullable) = false];
+	optional uint64 hard_hash = 3 [(gogoproto.nullable) = false];
+}
+
 message PaxosMsg{
     optional MessageType MsgType = 1 [(gogoproto.nullable) = false];
     optional uint64 To = 2 [(gogoproto.nullable) = false];
