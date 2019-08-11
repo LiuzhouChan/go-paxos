@@ -34,6 +34,12 @@ message PaxosMsg{
 	optional bytes MasterVariables = 19;
 }
 
+message MessageBatch{
+	repeated PaxosMsg requests = 1 [(gogoproto.nullable) = false];
+	optional string source_address = 2 [(gogoproto.nullable) = false];
+	optional uint32 bin_ver = 3 [(gogoproto.nullable) = false];
+}
+
 enum EntryType{
 	ApplicationEntry = 0;
 	ConfigChangeEntry = 1;
@@ -43,6 +49,10 @@ message Entry{
 	optional uint64 InstanceID = 1 [(gogoproto.nullable) = false];
 	optional EntryType Type = 2 [(gogoproto.nullable) = false];
 	optional string Cmd = 3 [(gogoproto.nullable) = false];
+}
+
+message EntryBatch{
+	repeated Entry entries          = 1 [(gogoproto.nullable) = false];
 }
 
 message BallotNumber{
