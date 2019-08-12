@@ -143,14 +143,14 @@ type NativeStateMachine struct {
 }
 
 // NewNativeStateMachine creates and returns a new NativeStateMachine object.
-// func NewNativeStateMachine(ds statemachine.IStateMachine,
-// 	done <-chan struct{}) IManagedStateMachine {
-// 	s := &NativeStateMachine{
-// 		dataStore: ds,
-// 		done:      done,
-// 	}
-// 	return s
-// }
+func NewNativeStateMachine(ds statemachine.IStateMachine,
+	done <-chan struct{}) IManagedStateMachine {
+	s := &NativeStateMachine{
+		dataStore: ds,
+		done:      done,
+	}
+	return s
+}
 func (ds *NativeStateMachine) closeStateMachine() {
 	ds.dataStore.Close()
 }
@@ -210,4 +210,29 @@ func (ds *NativeStateMachine) SaveSnapshot(fp string,
 		return 0, err
 	}
 	return sz + SnapshotHeaderSize, nil
+}
+
+// RecoverFromSnapshot recovers the state of the data store from the snapshot
+// file specified by the fp input string.
+func (ds *NativeStateMachine) RecoverFromSnapshot(fp string,
+	files []statemachine.SnapshotFile) (err error) {
+	reader, err := NewSnapshotReader(fp)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = reader.Close()
+	}()
+	header, err := reader.GetHeader()
+	if err != nil {
+		return err
+	}
+	reader.ValidateHeader(header)
+
+	if err = ds.dataStore.RecoverFromSnapshot(reader, files, ds.done); err != nil {
+		plog.Errorf("statemachine.RecoverFromSnapshot returned %v", err)
+		return err
+	}
+	reader.ValidatePayload(header)
+	return err
 }
