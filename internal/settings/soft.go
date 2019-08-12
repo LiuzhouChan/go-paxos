@@ -7,6 +7,11 @@ var Soft = getSoftSettings()
 type soft struct {
 	StreamConnections uint64
 	LazyFreeCycle     uint64
+
+	// NodeCommitChanLength defined the length of each node's commitC channel.
+	NodeCommitChanLength uint64
+
+	BatchedEntryApply uint64
 }
 
 func getSoftSettings() soft {
@@ -16,7 +21,9 @@ func getSoftSettings() soft {
 
 func getDefaultSoftSettings() soft {
 	return soft{
-		StreamConnections: 4,
-		LazyFreeCycle:     1,
+		StreamConnections:    4,
+		LazyFreeCycle:        1,
+		NodeCommitChanLength: 1024,
+		BatchedEntryApply:    0,
 	}
 }
