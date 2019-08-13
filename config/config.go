@@ -5,10 +5,10 @@ import (
 	"github.com/lni/dragonboat/raftio"
 )
 
-// RaftRPCFactoryFunc is the factory function that creates the Raft RPC module
+// PaxosRPCFactoryFunc is the factory function that creates the Raft RPC module
 // instance for exchanging Raft messages between NodeHosts.
-type RaftRPCFactoryFunc func(NodeHostConfig,
-	paxosio.RequestHandler, paxosio.ChunkSinkFactory) paxosio.IPaxosRPC
+type PaxosRPCFactoryFunc func(NodeHostConfig,
+	paxosio.RequestHandler) paxosio.IPaxosRPC
 
 // LogDBFactoryFunc is the factory function that creates NodeHost's persistent
 // storage module known as Log DB.
@@ -43,8 +43,8 @@ type NodeHostConfig struct {
 	// used by NodeHost. The default zero value causes the default built-in RocksDB
 	// based Log DB implementation to be used.
 	LogDBFactory LogDBFactoryFunc
-	// RaftRPCFactory is the factory function used for creating the Paxos RPC
+	// PaxosRPCFactory is the factory function used for creating the Paxos RPC
 	// instance for exchanging Paxos message between NodeHost instances. The default
 	// zero value causes the built-in TCP based RPC module to be used.
-	RaftRPCFactory RaftRPCFactoryFunc
+	PaxosRPCFactory PaxosRPCFactoryFunc
 }
