@@ -52,4 +52,16 @@ type StateMachine struct {
 	node        INodeProxy
 	sm          IManagedStateMachine
 	lastApplied uint64
+	commitC     chan Commit
+}
+
+//NewStateMachine ...
+func NewStateMachine(sm IManagedStateMachine,
+	proxy INodeProxy) *StateMachine {
+	a := &StateMachine{
+		sm:      sm,
+		commitC: make(chan Commit, commitChanLength),
+		node:    proxy,
+	}
+	return a
 }
