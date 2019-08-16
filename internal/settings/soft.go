@@ -19,6 +19,9 @@ type soft struct {
 	GetConnectedTimeoutSecond uint64
 
 	BatchedEntryApply uint64
+
+	StepEngineCommitWorkerCount uint64
+	NodeReloadMillisecond       uint64
 }
 
 func getSoftSettings() soft {
@@ -28,13 +31,15 @@ func getSoftSettings() soft {
 
 func getDefaultSoftSettings() soft {
 	return soft{
-		StreamConnections:         4,
-		LazyFreeCycle:             1,
-		NodeCommitChanLength:      1024,
-		SendQueueLength:           1024 * 8,
-		PerConnectionBufferSize:   64 * 1024 * 1024,
-		PerConnectionRecvBufSize:  64 * 1024,
-		GetConnectedTimeoutSecond: 5,
-		BatchedEntryApply:         0,
+		StreamConnections:           4,
+		LazyFreeCycle:               1,
+		NodeCommitChanLength:        1024,
+		SendQueueLength:             1024 * 8,
+		PerConnectionBufferSize:     64 * 1024 * 1024,
+		PerConnectionRecvBufSize:    64 * 1024,
+		GetConnectedTimeoutSecond:   5,
+		NodeReloadMillisecond:       200,
+		StepEngineCommitWorkerCount: 16,
+		BatchedEntryApply:           0,
 	}
 }

@@ -55,7 +55,7 @@ enum EntryType{
 message Entry{
 	optional uint64 InstanceID = 1 [(gogoproto.nullable) = false];
 	optional EntryType Type = 2 [(gogoproto.nullable) = false];
-	optional string Cmd = 3 [(gogoproto.nullable) = false];
+	optional bytes Cmd = 3 [(gogoproto.nullable) = false];
 }
 
 message EntryBatch{

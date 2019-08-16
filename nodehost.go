@@ -3,8 +3,11 @@ package paxos
 import "sync"
 
 const (
+	//PaxosMajor ...
 	PaxosMajor = 0
+	//PaxosMinor ...
 	PaxosMinor = 0
+	//PaxosPatch ...
 	PaxosPatch = 1
 	// DEVVersion is a boolean value to indicate whether this is a dev version
 	DEVVersion = true
