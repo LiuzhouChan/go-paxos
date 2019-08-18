@@ -22,6 +22,17 @@ type soft struct {
 
 	StepEngineCommitWorkerCount uint64
 	NodeReloadMillisecond       uint64
+
+	// UseRangeDelete determines whether to use range delete when possible.
+	UseRangeDelete bool
+	// RDBMaxBackgroundCompactions is the MaxBackgroundCompactions parameter
+	// directly passed to rocksdb.
+	RDBMaxBackgroundCompactions uint64
+	// RDBMaxBackgroundFlushes is the MaxBackgroundFlushes parameter directly
+	// passed to rocksdb.
+	RDBMaxBackgroundFlushes uint64
+	// RDBLRUCacheSize is the LRUCacheSize
+	RDBLRUCacheSize uint64
 }
 
 func getSoftSettings() soft {
@@ -40,6 +51,9 @@ func getDefaultSoftSettings() soft {
 		GetConnectedTimeoutSecond:   5,
 		NodeReloadMillisecond:       200,
 		StepEngineCommitWorkerCount: 16,
+		RDBMaxBackgroundCompactions: 2,
+		RDBMaxBackgroundFlushes:     2,
+		RDBLRUCacheSize:             0,
 		BatchedEntryApply:           0,
 	}
 }

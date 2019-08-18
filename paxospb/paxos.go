@@ -5,3 +5,12 @@ package paxospb
 // machine.
 type Update struct {
 }
+
+//IsStateEqual ...
+func IsStateEqual(a AcceptorState, b AcceptorState) bool {
+	return isStateEqual(a, b)
+}
+
+func isStateEqual(a AcceptorState, b AcceptorState) bool {
+	return true
+}
