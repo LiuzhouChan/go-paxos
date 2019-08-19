@@ -58,6 +58,12 @@ message Entry{
 	optional bytes Cmd = 3 [(gogoproto.nullable) = false];
 }
 
+message Bootstrap {
+	map<uint64, string> addresses   = 1;
+	optional bool join              = 2 [(gogoproto.nullable) = false];
+  }
+  
+
 message EntryBatch{
 	repeated Entry entries          = 1 [(gogoproto.nullable) = false];
 }
@@ -73,27 +79,6 @@ message AcceptorState{
     optional BallotNumber AcceptedBallot    = 3 [(gogoproto.nullable) = false];
     optional string       AccetpedValue     = 4 [(gogoproto.nullable) = false];
 }
-
-message MasterVariables{
-    required uint64 MasterNodeID = 1;
-    required uint64 Version = 2;
-    required uint32 LeaseTime = 3;
-}
-
-message PaxosNodeInfo
-{
-	required uint64 Rid = 1;
-	required uint64 NodeID = 2;
-}
-
-
-message SystemVariables
-{
-	required uint64 Gid = 1;
-	repeated PaxosNodeInfo MemberShip = 2;
-	required uint64 Version = 3;
-}
-
 
 enum ChecksumType{
 	CRC32IEEE = 0;

@@ -88,7 +88,7 @@ func (r *rdbcache) setLastEntryBatch(groupID uint64,
 }
 
 func (r *rdbcache) getLastEntryBatch(groupID uint64,
-	nodeID uint64, lb pb.EntryBatch) (pb.EntryBatch, bool) {
+	nodeID uint64, lb paxospb.EntryBatch) (paxospb.EntryBatch, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	key := paxosio.NodeInfo{GroupID: groupID, NodeID: nodeID}

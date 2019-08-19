@@ -4,6 +4,13 @@ package paxospb
 // processed by paxos's upper layer to progress the raft node modelled as state
 // machine.
 type Update struct {
+	AcceptorState
+	GroupID          uint64
+	NodeID           uint64
+	EntriesToSave    []Entry
+	CommittedEntries []Entry
+	Messages         []PaxosMsg
+	LastApplied      uint64
 }
 
 //IsStateEqual ...

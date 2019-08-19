@@ -1,7 +1,16 @@
 package paxosio
 
 import (
+	"errors"
+
 	"github.com/LiuzhouChan/go-paxos/paxospb"
+)
+
+var (
+	// ErrNoSavedLog indicates no saved log.
+	ErrNoSavedLog = errors.New("no saved log")
+	// ErrNoBootstrapInfo indicates that there is no saved bootstrap info.
+	ErrNoBootstrapInfo = errors.New("no bootstrap info")
 )
 
 //NodeInfo ...
@@ -35,9 +44,9 @@ type IReusableKey interface {
 	// SetStateKey sets the key to be an persistent state key suitable
 	// for the specified paxos group node.
 	SetStateKey(groupID uint64, nodeID uint64)
-	// SetMaxIndexKey sets the key to be the max possible index key for the
+	// SetMaxInstanceKey sets the key to be the max possible index key for the
 	// specified paxos group node.
-	SetMaxIndexKey(groupID uint64, nodeID uint64)
+	SetMaxInstanceKey(groupID uint64, nodeID uint64)
 	// Key returns the underlying byte slice of the key.
 	Key() []byte
 	// Release releases the key instance so it can be reused in the future.
@@ -55,8 +64,6 @@ type IContext interface {
 	GetValueBuffer(sz uint64) []byte
 	GetUpdate() paxospb.Update
 	GetWriteBatch() interface{}
-	GetEntryBatch() paxospb.EntryBatch
-	GetLastEntryBatch() paxospb.EntryBatch
 }
 
 // ILogDB is the interface implemented by the log DB for persistently store
