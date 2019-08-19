@@ -3,6 +3,7 @@ package logdb
 import (
 	"encoding/binary"
 	"errors"
+	"math"
 
 	"github.com/LiuzhouChan/go-paxos/paxosio"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
@@ -172,4 +173,19 @@ func (r *RDB) getBootstrapInfo(groupID, nodeID uint64) (*paxospb.Bootstrap, erro
 		return nil, err
 	}
 	return bootstrap, nil
+}
+
+func (r *RDB) listNodeInfo() ([]paxosio.NodeInfo, error) {
+	firstKey := newKey(bootstrapKeySize, nil)
+	lastKey := newKey(bootstrapKeySize, nil)
+	firstKey.setBootstrapKey(0, 0)
+	lastKey.setBootstrapKey(math.MaxUint64, math.MaxUint64)
+	ni := make([]paxosio.NodeInfo, 0)
+	op := func(key []byte, data []byte) (bool, error) {
+		gid, nid := parseNodeInfoKey(data)
+		ni = append(ni, paxosio.GetNodeInfo(gid, nid))
+		return true, nil
+	}
+	r.kvs.IterateValue(firstKey.Key(), lastKey.Key(), true, op)
+	return ni, nil
 }

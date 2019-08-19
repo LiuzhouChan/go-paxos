@@ -62,7 +62,7 @@ type IContext interface {
 	Reset()
 	GetKey() IReusableKey
 	GetValueBuffer(sz uint64) []byte
-	GetUpdate() paxospb.Update
+	GetUpdate() []paxospb.Update
 	GetWriteBatch() interface{}
 }
 
@@ -73,22 +73,21 @@ type ILogDB interface {
 	Close()
 	GetLogDBThreadContext() IContext
 	ListNodeInfo() ([]NodeInfo, error)
-	SavePaxosState(updates []paxospb.Update, ctx IContext) error
+	// SavePaxosState(updates []paxospb.Update, ctx IContext) error
 
 	// IterateEntries returns the continuous Paxos log entries of the specified
 	// Paxos node between the index value range of [low, high) up to a max size
 	// limit of maxSize bytes. It returns the located log entries, their total
 	// size in bytes and the occurred error.
-	IterateEntries(ents []paxospb.Entry,
-		size uint64, groupID uint64, nodeID uint64, low uint64,
-		high uint64, maxSize uint64) ([]paxospb.Entry, uint64, error)
+	IterateEntries(groupID uint64, nodeID uint64, low uint64,
+		high uint64) ([]paxospb.Entry, uint64, error)
 
 	//ReadPaxosState returns the persistented paxos state found in Log DB.
 	ReadPaxosState(groupID, nodeID, lastInstance uint64) (*PaxosState, error)
 
 	// RemoveEntriesTo removes entries associated with the specified paxos node up
 	// to the specified instance.
-	RemoveEntriesTo(groupID, nodeID, instance uint64) error
+	// RemoveEntriesTo(groupID, nodeID, instance uint64) error
 
-	SaveSnapshot(groupID, nodeID, instance uint64) error
+	// SaveSnapshot(groupID, nodeID, instance uint64) error
 }
