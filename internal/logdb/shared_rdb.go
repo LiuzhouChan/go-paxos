@@ -6,7 +6,6 @@ import (
 
 	"github.com/LiuzhouChan/go-paxos/paxosio"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
-	"github.com/lni/dragonboat/raftio"
 
 	"github.com/LiuzhouChan/go-paxos/internal/server"
 	"github.com/LiuzhouChan/go-paxos/internal/settings"
@@ -60,7 +59,7 @@ func (mw *ShardedRDB) GetLogDBThreadContext() paxosio.IContext {
 }
 
 // ListNodeInfo lists all available NodeInfo found in the log db.
-func (mw *ShardedRDB) ListNodeInfo() ([]raftio.NodeInfo, error) {
+func (mw *ShardedRDB) ListNodeInfo() ([]paxosio.NodeInfo, error) {
 	r := make([]paxosio.NodeInfo, 0)
 	for _, v := range mw.shards {
 		n, err := v.listNodeInfo()
@@ -88,7 +87,7 @@ func (mw *ShardedRDB) GetBootstrapInfo(groupID uint64,
 
 //	IterateEntries ...
 func (mw *ShardedRDB) IterateEntries(groupID uint64, nodeID uint64, low uint64,
-	high uint64, maxSize uint64) ([]paxospb.Entry, error) {
+	high uint64) ([]paxospb.Entry, error) {
 	idx := mw.partitioner.GetPartitionID(groupID)
 	return mw.shards[idx].iterateEntrys(groupID, nodeID, low, high)
 }

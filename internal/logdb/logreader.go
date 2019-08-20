@@ -29,3 +29,19 @@ func NewLogReader(groupID uint64, nodeID uint64, logdb paxosio.ILogDB) *LogReade
 		length:  1,
 	}
 }
+
+// GetRange returns the index range of all logs managed by the LogReader
+// instance.
+func (lr *LogReader) GetRange() (uint64, uint64) {
+	lr.Lock()
+	defer lr.Unlock()
+	return lr.firstInstanceID(), lr.lastInstanceID()
+}
+
+func (lr *LogReader) firstInstanceID() uint64 {
+	return lr.markerInstanceID + 1
+}
+
+func (lr *LogReader) lastInstanceID() uint64 {
+	return lr.markerInstanceID + lr.length - 1
+}
