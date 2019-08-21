@@ -21,3 +21,21 @@ func IsStateEqual(a AcceptorState, b AcceptorState) bool {
 func isStateEqual(a AcceptorState, b AcceptorState) bool {
 	return true
 }
+
+//IsNil ...
+func (m *BallotNumber) IsNil() bool {
+	return m.ProposalID == 0
+}
+
+//IsEqual ...
+func (m *BallotNumber) IsEqual(b *BallotNumber) bool {
+	return m.ProposalID == b.ProposalID && m.NodeID == b.NodeID
+}
+
+//IsNotLessThan ...
+func (m *BallotNumber) IsNotLessThan(b *BallotNumber) bool {
+	if m.ProposalID == b.ProposalID {
+		return m.NodeID >= b.NodeID
+	}
+	return m.ProposalID >= b.ProposalID
+}

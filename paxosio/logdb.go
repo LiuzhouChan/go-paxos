@@ -24,6 +24,12 @@ func GetNodeInfo(gid uint64, nid uint64) NodeInfo {
 	return NodeInfo{GroupID: gid, NodeID: nid}
 }
 
+// State ...
+type State struct {
+	InstanceID uint64
+	Commit     uint64
+}
+
 //PaxosState ...
 type PaxosState struct {
 	State paxospb.AcceptorState
@@ -73,7 +79,15 @@ type ILogDB interface {
 	Close()
 	GetLogDBThreadContext() IContext
 	ListNodeInfo() ([]NodeInfo, error)
-	// SavePaxosState(updates []paxospb.Update, ctx IContext) error
+
+	// SaveBootstrapInfo saves the specified bootstrap info to the log DB.
+	SaveBootstrapInfo(clusterID uint64,
+		nodeID uint64, bootstrap paxospb.Bootstrap) error
+	// GetBootstrapInfo returns saved bootstrap info from log DB. It returns
+	// ErrNoBootstrapInfo when there is no previously saved bootstrap info for
+	// the specified node.
+	GetBootstrapInfo(clusterID uint64, nodeID uint64) (*paxospb.Bootstrap, error)
+	SavePaxosState(updates []paxospb.Update, ctx IContext) error
 
 	// IterateEntries returns the continuous Paxos log entries of the specified
 	// Paxos node between the index value range of [low, high) up to a max size
@@ -82,8 +96,8 @@ type ILogDB interface {
 	IterateEntries(groupID uint64, nodeID uint64, low uint64,
 		high uint64) ([]paxospb.Entry, error)
 
-	//ReadPaxosState returns the persistented paxos state found in Log DB.
-	// ReadPaxosState(groupID, nodeID, lastInstance uint64) (*PaxosState, error)
+	// ReadPaxosState returns the persistented paxos state found in Log DB.
+	ReadPaxosState(groupID, nodeID, lastInstance uint64) (*PaxosState, error)
 
 	// RemoveEntriesTo removes entries associated with the specified paxos node up
 	// to the specified instance.

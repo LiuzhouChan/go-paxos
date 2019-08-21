@@ -77,7 +77,7 @@ message AcceptorState{
     optional uint64       InstanceID        = 1 [(gogoproto.nullable) = false];
     optional BallotNumber PromiseBallot     = 2 [(gogoproto.nullable) = false];
     optional BallotNumber AcceptedBallot    = 3 [(gogoproto.nullable) = false];
-    optional string       AccetpedValue     = 4 [(gogoproto.nullable) = false];
+    optional bytes       AccetpedValue     = 4 [(gogoproto.nullable) = false];
 }
 
 enum ChecksumType{
