@@ -1,7 +1,12 @@
 package ipaxos
 
 import (
+	"github.com/LiuzhouChan/go-paxos/logger"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
+)
+
+var (
+	plog = logger.GetLogger("paxos")
 )
 
 //IInstanceProxy ...

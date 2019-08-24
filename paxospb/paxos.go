@@ -28,12 +28,12 @@ func (m *BallotNumber) IsNil() bool {
 }
 
 //IsEqual ...
-func (m *BallotNumber) IsEqual(b *BallotNumber) bool {
+func (m *BallotNumber) IsEqual(b BallotNumber) bool {
 	return m.ProposalID == b.ProposalID && m.NodeID == b.NodeID
 }
 
 //IsNotLessThan ...
-func (m *BallotNumber) IsNotLessThan(b *BallotNumber) bool {
+func (m *BallotNumber) IsNotLessThan(b BallotNumber) bool {
 	if m.ProposalID == b.ProposalID {
 		return m.NodeID >= b.NodeID
 	}

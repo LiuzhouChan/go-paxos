@@ -50,3 +50,10 @@ func IsValidAddress(addr string) bool {
 	}
 	return false
 }
+
+// BytesDeepCopy ...
+func BytesDeepCopy(b []byte) []byte {
+	ret := make([]byte, 0)
+	ret = append(ret, b...)
+	return ret
+}

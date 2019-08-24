@@ -1,31 +1,79 @@
 package ipaxos
 
 import (
+	"github.com/LiuzhouChan/go-paxos/internal/utils/stringutil"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
 )
 
+type state uint64
+
+const (
+	preparing state = iota
+	accepting
+	closing
+)
+
+var stateNames = [...]string{
+	"Preparing",
+	"Accepting",
+	"Closing",
+}
+
+//String ....
+func (st state) String() string {
+	return stateNames[st]
+}
+
 //Proposer ...
 type Proposer struct {
-	instance                    IInstanceProxy
-	instanceID                  uint64
+	instance       IInstanceProxy
+	prepareTimeout uint64
+	acceptTimeout  uint64
+	nodeID         uint64
+	remote         map[uint64]bool
+
 	proposalID                  uint64
+	instanceID                  uint64
 	highestOtherProposalID      uint64
-	value                       string
+	value                       []byte
 	highestOtherPreAcceptBallot paxospb.BallotNumber
 	canSkipPrepare              bool
+	rejectBySomeone             bool
+	votes                       map[uint64]bool
+	tickCount                   uint64
+	preparingTick               uint64
+	acceptingTick               uint64
+	st                          state
 }
 
 func newProposer() *Proposer {
 	p := &Proposer{
 		proposalID: 1,
-		value:      "",
+		value:      []byte{},
 	}
 	return p
 }
 
-func (p *Proposer) reset() {
+func (p *Proposer) newInstance() {
+	p.reset(p.instanceID + 1)
+}
+
+func (p *Proposer) reset(instanceID uint64) {
+	if p.instanceID != instanceID {
+		p.proposalID = 1
+	}
+	p.instanceID = instanceID
+
+	p.st = closing
+	p.preparingTick = 0
+	p.acceptingTick = 0
+
 	p.highestOtherProposalID = 0
-	p.value = ""
+	p.highestOtherPreAcceptBallot = paxospb.BallotNumber{}
+	p.canSkipPrepare = false
+	p.rejectBySomeone = false
+	p.value = p.value[:0]
+	p.votes = make(map[uint64]bool)
 }
 
 func (p *Proposer) newPrepare() {
@@ -34,4 +82,163 @@ func (p *Proposer) newPrepare() {
 		maxProposalID = p.proposalID
 	}
 	p.proposalID = maxProposalID + 1
+}
+
+func (p *Proposer) addPreAcceptValue(ob paxospb.BallotNumber,
+	ov []byte) {
+	if ob.IsNil() {
+		return
+	}
+	if !p.highestOtherPreAcceptBallot.IsNotLessThan(ob) {
+		p.highestOtherPreAcceptBallot = ob
+		p.value = stringutil.BytesDeepCopy(ov)
+	}
+}
+
+func (p *Proposer) setOtherProposalID(op uint64) {
+	if op > p.highestOtherProposalID {
+		p.highestOtherProposalID = op
+	}
+}
+
+func (p *Proposer) tick() {
+	p.tickCount++
+	if p.st == preparing {
+		p.prepareTick()
+		if p.timeForPrepareTimeout() {
+			p.handlePrepare(p.rejectBySomeone)
+		}
+	} else if p.st == accepting {
+		p.acceptTick()
+		if p.timeForAcceptTimeout() {
+			p.handlePrepare(p.rejectBySomeone)
+		}
+	}
+}
+
+func (p *Proposer) prepareTick() {
+	p.preparingTick++
+}
+
+func (p *Proposer) acceptTick() {
+	p.acceptingTick++
+}
+
+func (p *Proposer) timeForPrepareTimeout() bool {
+	return p.preparingTick >= p.prepareTimeout
+}
+
+func (p *Proposer) timeForAcceptTimeout() bool {
+	return p.acceptingTick >= p.acceptTimeout
+}
+
+func (p *Proposer) quorum() int {
+	return len(p.remote)/2 + 1
+}
+
+func (p *Proposer) isSingleNodeQuorum() bool {
+	return p.quorum() == 1
+}
+
+func (p *Proposer) handlePrepare(needNewBallot bool) {
+	p.reset(p.instanceID)
+	if needNewBallot {
+		p.newPrepare()
+	}
+	msg := paxospb.PaxosMsg{
+		MsgType:    paxospb.PaxosPrepare,
+		InstanceID: p.instanceID,
+		ProposalID: p.proposalID,
+	}
+	p.st = preparing
+	p.preparingTick = 0
+	for nid := range p.remote {
+		msg.To = nid
+		p.instance.Send(msg)
+	}
+}
+
+func (p *Proposer) handlePrepareResp(msg paxospb.PaxosMsg) {
+	if p.st != preparing {
+		return
+	}
+	if p.proposalID != msg.ProposalID {
+		return
+	}
+	if msg.RejectByPromiseID == 0 {
+		b := paxospb.BallotNumber{
+			ProposalID: msg.PreAcceptID,
+			NodeID:     msg.PreAcceptNodeID,
+		}
+		p.addPreAcceptValue(b, msg.Value)
+	} else {
+		p.rejectBySomeone = true
+		p.setOtherProposalID(msg.RejectByPromiseID)
+	}
+	count := 0
+	if _, ok := p.votes[msg.From]; !ok {
+		p.votes[msg.From] = msg.RejectByPromiseID == 0
+	}
+	for _, v := range p.votes {
+		if v {
+			count++
+		}
+	}
+	if count == p.quorum() {
+		// pass
+		plog.Infof("[Pass] start accept")
+		p.canSkipPrepare = true
+		p.votes = make(map[uint64]bool)
+		p.handleAccept()
+	} else if len(p.votes)-count == p.quorum() {
+		// if the reject is maj, wait for 30ms and restart prepare
+	}
+}
+
+func (p *Proposer) handleAccept() {
+	p.st = accepting
+	p.acceptingTick = 0
+	msg := paxospb.PaxosMsg{
+		MsgType:    paxospb.PaxosAccept,
+		InstanceID: p.instanceID,
+		ProposalID: p.proposalID,
+		Value:      stringutil.BytesDeepCopy(p.value),
+	}
+
+	for nid := range p.remote {
+		msg.To = nid
+		p.instance.Send(msg)
+	}
+}
+
+func (p *Proposer) handleAcceptResp(msg paxospb.PaxosMsg) {
+	if p.st != accepting {
+		return
+	}
+	if msg.ProposalID != p.proposalID {
+		return
+	}
+	if msg.RejectByPromiseID != 0 {
+		//reject
+		p.rejectBySomeone = true
+		p.setOtherProposalID(msg.RejectByPromiseID)
+	}
+	count := 0
+	if _, ok := p.votes[msg.From]; !ok {
+		p.votes[msg.From] = msg.RejectByPromiseID == 0
+	}
+	for _, v := range p.votes {
+		if v {
+			count++
+		}
+	}
+
+	if count == p.quorum() {
+		// pass
+		plog.Infof("[Pass] start send learn")
+		p.st = closing
+
+	} else if len(p.votes)-count == p.quorum() {
+		plog.Infof("[Not Pass] wait and restart prepare")
+	}
 }

@@ -19,15 +19,14 @@ func (a *Acceptor) handlePrepare(msg paxospb.PaxosMsg) {
 	resp := paxospb.PaxosMsg{
 		To:         msg.From,
 		MsgType:    paxospb.PaxosPrepareReply,
-		NodeID:     a.nodeID,
 		ProposalID: msg.ProposalID,
 	}
 	ballot := paxospb.BallotNumber{
 		ProposalID: msg.ProposalID,
-		NodeID:     msg.NodeID,
+		NodeID:     msg.From,
 	}
 
-	if ballot.IsNotLessThan(&a.state.PromiseBallot) {
+	if ballot.IsNotLessThan(a.state.PromiseBallot) {
 		// if the msg's proposal id is bigger than ours
 		resp.PreAcceptID = a.state.AcceptedBallot.ProposalID
 		resp.PreAcceptNodeID = a.state.AcceptedBallot.NodeID
@@ -43,16 +42,15 @@ func (a *Acceptor) handleAccept(msg paxospb.PaxosMsg) {
 	resp := paxospb.PaxosMsg{
 		To:         msg.From,
 		MsgType:    paxospb.PaxosAcceptReply,
-		NodeID:     a.nodeID,
 		ProposalID: msg.ProposalID,
 	}
 
 	ballot := paxospb.BallotNumber{
 		ProposalID: msg.ProposalID,
-		NodeID:     msg.NodeID,
+		NodeID:     msg.From,
 	}
 
-	if ballot.IsNotLessThan(&a.state.PromiseBallot) {
+	if ballot.IsNotLessThan(a.state.PromiseBallot) {
 		a.state.PromiseBallot = ballot
 		a.state.AcceptedBallot = ballot
 		a.state.AccetpedValue = msg.Value
