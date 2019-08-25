@@ -106,12 +106,12 @@ func (p *Proposer) tick() {
 	if p.st == preparing {
 		p.prepareTick()
 		if p.timeForPrepareTimeout() {
-			p.handlePrepare(p.rejectBySomeone)
+			p.prepare(p.rejectBySomeone)
 		}
 	} else if p.st == accepting {
 		p.acceptTick()
 		if p.timeForAcceptTimeout() {
-			p.handlePrepare(p.rejectBySomeone)
+			p.prepare(p.rejectBySomeone)
 		}
 	}
 }
@@ -140,7 +140,7 @@ func (p *Proposer) isSingleNodeQuorum() bool {
 	return p.quorum() == 1
 }
 
-func (p *Proposer) handlePrepare(needNewBallot bool) {
+func (p *Proposer) prepare(needNewBallot bool) {
 	p.reset(p.instanceID)
 	if needNewBallot {
 		p.newPrepare()
@@ -189,13 +189,13 @@ func (p *Proposer) handlePrepareResp(msg paxospb.PaxosMsg) {
 		plog.Infof("[Pass] start accept")
 		p.canSkipPrepare = true
 		p.votes = make(map[uint64]bool)
-		p.handleAccept()
+		p.accept()
 	} else if len(p.votes)-count == p.quorum() {
 		// if the reject is maj, wait for 30ms and restart prepare
 	}
 }
 
-func (p *Proposer) handleAccept() {
+func (p *Proposer) accept() {
 	p.st = accepting
 	p.acceptingTick = 0
 	msg := paxospb.PaxosMsg{

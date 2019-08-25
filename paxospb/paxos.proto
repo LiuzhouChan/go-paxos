@@ -13,6 +13,11 @@ enum MessageType {
 	PaxosPrepareReply = 2;
 	PaxosAccept = 3;
 	PaxosAcceptReply = 4;
+	PaxosLearnerAskForLearn = 5;
+	PaxosLearnerSendNowInstanceID = 6;
+	PaxosLearnerConfirmAskForLearn = 7;
+	PaxosLearnerSendLearnValue = 8;
+	PaxosLearnerProposerSendSuccess = 9;
 }
 
 message PaxosDataStatus {
