@@ -18,6 +18,7 @@ enum MessageType {
 	PaxosLearnerConfirmAskForLearn = 7;
 	PaxosLearnerSendLearnValue = 8;
 	PaxosLearnerProposerSendSuccess = 9;
+	Propose = 10;
 }
 
 message PaxosDataStatus {
@@ -43,7 +44,6 @@ message PaxosMsg{
 	optional uint64 MinChosenInstanceID = 14 [(gogoproto.nullable) = false];
 	optional uint32 Flag = 17 [(gogoproto.nullable) = false];
 	optional bytes MasterVariables = 19;
-	repeated Entry entries     = 20 [(gogoproto.nullable) = false];
 }
 
 message MessageBatch{
@@ -52,15 +52,18 @@ message MessageBatch{
 	optional uint32 bin_ver = 3 [(gogoproto.nullable) = false];
 }
 
+message State {
+	optional uint64 commit = 1 [(gogoproto.nullable) = false];
+}
+
 enum EntryType{
 	ApplicationEntry = 0;
 	ConfigChangeEntry = 1;
 }
 
 message Entry{
-	optional uint64 InstanceID = 1 [(gogoproto.nullable) = false];
-	optional EntryType Type = 2 [(gogoproto.nullable) = false];
-	optional bytes Cmd = 3 [(gogoproto.nullable) = false];
+	optional EntryType Type = 1 [(gogoproto.nullable) = false];
+	optional AcceptorState AcceptorState= 2 [(gogoproto.nullable) = false];
 }
 
 message Bootstrap {

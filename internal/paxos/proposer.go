@@ -24,8 +24,8 @@ func (st state) String() string {
 	return stateNames[st]
 }
 
-//Proposer ...
-type Proposer struct {
+//proposer ...
+type proposer struct {
 	instance       IInstanceProxy
 	prepareTimeout uint64
 	acceptTimeout  uint64
@@ -46,19 +46,19 @@ type Proposer struct {
 	st                          state
 }
 
-func newProposer() *Proposer {
-	p := &Proposer{
+func newProposer() *proposer {
+	p := &proposer{
 		proposalID: 1,
 		value:      []byte{},
 	}
 	return p
 }
 
-func (p *Proposer) newInstance() {
+func (p *proposer) newInstance() {
 	p.reset(p.instanceID + 1)
 }
 
-func (p *Proposer) reset(instanceID uint64) {
+func (p *proposer) reset(instanceID uint64) {
 	if p.instanceID != instanceID {
 		p.proposalID = 1
 	}
@@ -76,7 +76,7 @@ func (p *Proposer) reset(instanceID uint64) {
 	p.votes = make(map[uint64]bool)
 }
 
-func (p *Proposer) newPrepare() {
+func (p *proposer) newPrepare() {
 	maxProposalID := p.highestOtherProposalID
 	if p.proposalID >= maxProposalID {
 		maxProposalID = p.proposalID
@@ -84,7 +84,7 @@ func (p *Proposer) newPrepare() {
 	p.proposalID = maxProposalID + 1
 }
 
-func (p *Proposer) addPreAcceptValue(ob paxospb.BallotNumber,
+func (p *proposer) addPreAcceptValue(ob paxospb.BallotNumber,
 	ov []byte) {
 	if ob.IsNil() {
 		return
@@ -95,13 +95,13 @@ func (p *Proposer) addPreAcceptValue(ob paxospb.BallotNumber,
 	}
 }
 
-func (p *Proposer) setOtherProposalID(op uint64) {
+func (p *proposer) setOtherProposalID(op uint64) {
 	if op > p.highestOtherProposalID {
 		p.highestOtherProposalID = op
 	}
 }
 
-func (p *Proposer) tick() {
+func (p *proposer) tick() {
 	p.tickCount++
 	if p.st == preparing {
 		p.prepareTick()
@@ -116,31 +116,31 @@ func (p *Proposer) tick() {
 	}
 }
 
-func (p *Proposer) prepareTick() {
+func (p *proposer) prepareTick() {
 	p.preparingTick++
 }
 
-func (p *Proposer) acceptTick() {
+func (p *proposer) acceptTick() {
 	p.acceptingTick++
 }
 
-func (p *Proposer) timeForPrepareTimeout() bool {
+func (p *proposer) timeForPrepareTimeout() bool {
 	return p.preparingTick >= p.prepareTimeout
 }
 
-func (p *Proposer) timeForAcceptTimeout() bool {
+func (p *proposer) timeForAcceptTimeout() bool {
 	return p.acceptingTick >= p.acceptTimeout
 }
 
-func (p *Proposer) quorum() int {
+func (p *proposer) quorum() int {
 	return len(p.remote)/2 + 1
 }
 
-func (p *Proposer) isSingleNodeQuorum() bool {
+func (p *proposer) isSingleNodeQuorum() bool {
 	return p.quorum() == 1
 }
 
-func (p *Proposer) prepare(needNewBallot bool) {
+func (p *proposer) prepare(needNewBallot bool) {
 	p.reset(p.instanceID)
 	if needNewBallot {
 		p.newPrepare()
@@ -158,7 +158,7 @@ func (p *Proposer) prepare(needNewBallot bool) {
 	}
 }
 
-func (p *Proposer) handlePrepareResp(msg paxospb.PaxosMsg) {
+func (p *proposer) handlePrepareResp(msg paxospb.PaxosMsg) {
 	if p.st != preparing {
 		return
 	}
@@ -195,7 +195,7 @@ func (p *Proposer) handlePrepareResp(msg paxospb.PaxosMsg) {
 	}
 }
 
-func (p *Proposer) accept() {
+func (p *proposer) accept() {
 	p.st = accepting
 	p.acceptingTick = 0
 	msg := paxospb.PaxosMsg{
@@ -211,7 +211,7 @@ func (p *Proposer) accept() {
 	}
 }
 
-func (p *Proposer) handleAcceptResp(msg paxospb.PaxosMsg) {
+func (p *proposer) handleAcceptResp(msg paxospb.PaxosMsg) {
 	if p.st != accepting {
 		return
 	}

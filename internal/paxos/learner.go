@@ -5,8 +5,8 @@ import (
 	"github.com/LiuzhouChan/go-paxos/paxospb"
 )
 
-//Learner ...
-type Learner struct {
+//learner ...
+type learner struct {
 	instance IInstanceProxy
 	nodeID   uint64
 	remote   map[uint64]bool
@@ -21,40 +21,40 @@ type Learner struct {
 	askFroLearnTimeout uint64
 	isLearned          bool
 	learnedValue       []byte
-	acceptor           *Acceptor
+	acceptor           *acceptor
 }
 
-func newLearner(acceptor *Acceptor) *Learner {
-	l := &Learner{
+func newLearner(acceptor *acceptor) *learner {
+	l := &learner{
 		isLearned: false,
 		acceptor:  acceptor,
 	}
 	return l
 }
 
-func (l *Learner) learnValueWithoutWrite(value []byte) {
+func (l *learner) learnValueWithoutWrite(value []byte) {
 	l.learnedValue = stringutil.BytesDeepCopy(value)
 	l.isLearned = true
 }
 
-func (l *Learner) newInstance() {
+func (l *learner) newInstance() {
 	l.instanceID++
 	l.learnedValue = l.learnedValue[:0]
 	l.isLearned = false
 }
 
-func (l *Learner) isIMLast() bool {
+func (l *learner) isIMLast() bool {
 	return l.instanceID+1 >= l.highestSeenInstanceID
 }
 
-func (l *Learner) setSeenInstanceID(instanceID, nodeID uint64) {
+func (l *learner) setSeenInstanceID(instanceID, nodeID uint64) {
 	if instanceID > l.highestSeenInstanceID {
 		l.highestSeenInstanceID = instanceID
 		l.highestSeenInstanceIDFromNodeID = nodeID
 	}
 }
 
-func (l *Learner) tick() {
+func (l *learner) tick() {
 	l.tickCount++
 	l.askForLearnTick++
 	if l.timeForAskForLearn() {
@@ -62,11 +62,11 @@ func (l *Learner) tick() {
 	}
 }
 
-func (l *Learner) timeForAskForLearn() bool {
+func (l *learner) timeForAskForLearn() bool {
 	return l.askForLearnTick >= l.askFroLearnTimeout
 }
 
-func (l *Learner) askForLearn() {
+func (l *learner) askForLearn() {
 	msg := paxospb.PaxosMsg{
 		InstanceID: l.instanceID,
 		MsgType:    paxospb.PaxosLearnerAskForLearn,
@@ -80,7 +80,7 @@ func (l *Learner) askForLearn() {
 	}
 }
 
-func (l *Learner) handleAskForLearn(msg paxospb.PaxosMsg) {
+func (l *learner) handleAskForLearn(msg paxospb.PaxosMsg) {
 	l.setSeenInstanceID(msg.InstanceID, msg.NodeID)
 	if msg.InstanceID >= l.instanceID {
 		return
@@ -88,7 +88,7 @@ func (l *Learner) handleAskForLearn(msg paxospb.PaxosMsg) {
 
 }
 
-func (l *Learner) sendNowInstanceID(instanceID, nodeID uint64) {
+func (l *learner) sendNowInstanceID(instanceID, nodeID uint64) {
 	resp := paxospb.PaxosMsg{
 		To:                  nodeID,
 		MsgType:             paxospb.PaxosLearnerAskForLearn,
@@ -99,11 +99,11 @@ func (l *Learner) sendNowInstanceID(instanceID, nodeID uint64) {
 	l.instance.Send(resp)
 }
 
-func (l *Learner) handleSendNowInstanceID(msg paxospb.PaxosMsg) {
+func (l *learner) handleSendNowInstanceID(msg paxospb.PaxosMsg) {
 
 }
 
-func (l *Learner) comfirmAskForLearn(to uint64) {
+func (l *learner) comfirmAskForLearn(to uint64) {
 	msg := paxospb.PaxosMsg{
 		To:         to,
 		InstanceID: l.instanceID,
@@ -113,11 +113,11 @@ func (l *Learner) comfirmAskForLearn(to uint64) {
 	l.isLearned = true
 }
 
-func (l *Learner) handleComfirmAskForLearn(msg paxospb.PaxosMsg) {
+func (l *learner) handleComfirmAskForLearn(msg paxospb.PaxosMsg) {
 
 }
 
-func (l *Learner) sendLearnValue(to uint64, learnInstanceID uint64,
+func (l *learner) sendLearnValue(to uint64, learnInstanceID uint64,
 	learnedBallot paxospb.BallotNumber, learnedValue []byte) {
 	msg := paxospb.PaxosMsg{
 		To:         to,
@@ -129,7 +129,7 @@ func (l *Learner) sendLearnValue(to uint64, learnInstanceID uint64,
 	l.instance.Send(msg)
 }
 
-func (l *Learner) handleSendLearnValue(msg paxospb.PaxosMsg) {
+func (l *learner) handleSendLearnValue(msg paxospb.PaxosMsg) {
 	plog.Infof("get learn instance id %v, while our instance id %v", msg.InstanceID, l.instanceID)
 	if msg.InstanceID > l.instanceID {
 		plog.Infof("cannot learn")
@@ -148,7 +148,7 @@ func (l *Learner) handleSendLearnValue(msg paxospb.PaxosMsg) {
 
 }
 
-func (l *Learner) proposerSendSuccess(learnInstanceID, proposalID uint64) {
+func (l *learner) proposerSendSuccess(learnInstanceID, proposalID uint64) {
 	msg := paxospb.PaxosMsg{
 		MsgType:    paxospb.PaxosLearnerProposerSendSuccess,
 		InstanceID: learnInstanceID,
@@ -157,7 +157,7 @@ func (l *Learner) proposerSendSuccess(learnInstanceID, proposalID uint64) {
 	l.instance.Send(msg)
 }
 
-func (l *Learner) handleProposerSendSuccess(msg paxospb.PaxosMsg) {
+func (l *learner) handleProposerSendSuccess(msg paxospb.PaxosMsg) {
 	plog.Infof("get proposal send success msg instance id %v, while ours %v", msg.InstanceID, l.instanceID)
 	if msg.InstanceID != l.instanceID {
 		plog.Infof("Instance id not same, skip")

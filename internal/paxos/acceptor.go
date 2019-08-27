@@ -2,20 +2,20 @@ package ipaxos
 
 import "github.com/LiuzhouChan/go-paxos/paxospb"
 
-//Acceptor ...
-type Acceptor struct {
+//acceptor ...
+type acceptor struct {
 	instance   IInstanceProxy
 	instanceID uint64
 	nodeID     uint64
 	state      paxospb.AcceptorState
 }
 
-func (a *Acceptor) newInstance() {
+func (a *acceptor) newInstance() {
 	a.instanceID++
 	a.state = paxospb.AcceptorState{}
 }
 
-func (a *Acceptor) handlePrepare(msg paxospb.PaxosMsg) {
+func (a *acceptor) handlePrepare(msg paxospb.PaxosMsg) {
 	resp := paxospb.PaxosMsg{
 		To:         msg.From,
 		MsgType:    paxospb.PaxosPrepareReply,
@@ -38,7 +38,7 @@ func (a *Acceptor) handlePrepare(msg paxospb.PaxosMsg) {
 	a.instance.Send(resp)
 }
 
-func (a *Acceptor) handleAccept(msg paxospb.PaxosMsg) {
+func (a *acceptor) handleAccept(msg paxospb.PaxosMsg) {
 	resp := paxospb.PaxosMsg{
 		To:         msg.From,
 		MsgType:    paxospb.PaxosAcceptReply,
@@ -62,6 +62,6 @@ func (a *Acceptor) handleAccept(msg paxospb.PaxosMsg) {
 }
 
 //GetAcceptorState ...
-func (a *Acceptor) GetAcceptorState() paxospb.AcceptorState {
+func (a *acceptor) GetAcceptorState() paxospb.AcceptorState {
 	return a.state
 }

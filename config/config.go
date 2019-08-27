@@ -17,8 +17,9 @@ type LogDBFactoryFunc func(dirs []string,
 
 //Config ...
 type Config struct {
-	NodeID  uint64
-	GroupID uint64
+	NodeID     uint64
+	GroupID    uint64
+	IsFollower bool
 	// SnapshotEntries defines how often state machine should be snapshotted
 	// defined in terms of number of applied entries. Set SnapshotEntries to 0 to
 	// disable Raft snapshotting and log compaction.

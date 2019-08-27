@@ -45,7 +45,7 @@ func (r *rdbcache) setState(groupID uint64,
 		r.ps[key] = st
 		return true
 	}
-	if paxospb.IsStateEqual(v, st) {
+	if paxospb.IsAcceptorStateEqual(v, st) {
 		return false
 	}
 	r.ps[key] = st

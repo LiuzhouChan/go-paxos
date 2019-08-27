@@ -1,6 +1,7 @@
 package ipaxos
 
 import (
+	"github.com/LiuzhouChan/go-paxos/config"
 	"github.com/LiuzhouChan/go-paxos/logger"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
 )
@@ -9,28 +10,133 @@ var (
 	plog = logger.GetLogger("paxos")
 )
 
+var (
+	emptyState = paxospb.State{}
+)
+
 //IInstanceProxy ...
 type IInstanceProxy interface {
 	Send(msg paxospb.PaxosMsg)
 }
 
+const (
+	numMessageTypes uint64 = 25
+)
+
+type handlerFunc func(paxospb.PaxosMsg)
+type setpFunc func(*instance, paxospb.PaxosMsg)
+
 //Instance ...
-type Instance struct {
-	acceptor *Acceptor
-	learner  *Learner
-	proposer *Proposer
-	msgs     []paxospb.PaxosMsg
+type instance struct {
+	nodeID     uint64
+	applied    uint64
+	instanceID uint64
+	groupID    uint64
+	log        *entryLog
+	tickCount  uint64
+	acceptor   *acceptor
+	learner    *learner
+	proposer   *proposer
+	msgs       []paxospb.PaxosMsg
+
+	remotes   map[uint64]*remote
+	followers map[uint64]*remote
+	handlers  [numMessageTypes]handlerFunc
+	handle    setpFunc
 }
 
 //NewInstance ...
-func NewInstance() *Instance {
-	return nil
+func newInstance(c *config.Config, logdb ILogDB) *instance {
+	if logdb == nil {
+		panic("logdb is nil")
+	}
+	i := &instance{
+		groupID:   c.GroupID,
+		nodeID:    c.NodeID,
+		msgs:      make([]paxospb.PaxosMsg, 0),
+		log:       newEntryLog(logdb),
+		remotes:   make(map[uint64]*remote),
+		followers: make(map[uint64]*remote),
+	}
+	i.initializeHandlerMap()
+	i.handle = defaultHandle
+	return i
 }
 
-func (i *Instance) initializeHandlerMap() {
+//Send ...
+func (i *instance) send(msg paxospb.PaxosMsg) {
+	msg.From = i.nodeID
+	i.msgs = append(i.msgs, msg)
+}
+
+func (i *instance) addNode(nodeID uint64) {
+	if _, ok := i.remotes[nodeID]; ok {
+		//already a member
+		return
+	}
+	//TODO: check whether it is a follower
+	i.setRemote(nodeID, 0, 12)
+}
+
+func (i *instance) deleteRemote(nodeID uint64) {
+	delete(i.remotes, nodeID)
+}
+
+func (i *instance) deleteFollower(nodeID uint64) {
+	delete(i.followers, nodeID)
+}
+
+func (i *instance) setRemote(nodeID uint64, match uint64, next uint64) {
+	plog.Infof("set remote, id %s, match %d, next %d", nodeID, match, next)
+	i.remotes[nodeID] = &remote{
+		next:  next,
+		match: match,
+	}
+}
+
+func (i *instance) paxosState() paxospb.State {
+	return paxospb.State{
+		Commit: i.log.committed,
+	}
+}
+
+func (i *instance) loadState(st paxospb.State) {
+	if st.Commit < i.log.committed || st.Commit > i.log.lastInstanceID() {
+		plog.Panicf("got out of range state, st.commit %d, range[%d, %d]", st.Commit, i.log.committed, i.log.lastInstanceID())
+	}
+	i.log.committed = st.Commit
+}
+
+func (i *instance) Handle(msg paxospb.PaxosMsg) {
+	i.handle(i, msg)
+}
+
+func (i *instance) handleLocalTick(msg paxospb.PaxosMsg) {
+	i.tick()
+}
+
+func (i *instance) setApplied(applied uint64) {
+	i.applied = applied
+}
+
+func (i *instance) getApplied() uint64 {
+	return i.applied
+}
+
+func (i *instance) tick() {
+	i.tickCount++
+	i.proposer.tick()
+	i.learner.tick()
+}
+
+func (i *instance) initializeHandlerMap() {
 	// acceptor
 
 	// proposer
 
 	// learner
+}
+
+func defaultHandle(i *instance, msg paxospb.PaxosMsg) {
+
 }

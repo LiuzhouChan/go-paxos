@@ -43,8 +43,8 @@ func (r *RDB) recordEntries(wb IWriteBatch, groupID, nodeID uint64,
 	if len(entries) == 0 {
 		panic("empty entries")
 	}
-	firstInstanceID := entries[0].InstanceID
-	lastInstanceID := entries[len(entries)-1].InstanceID
+	firstInstanceID := entries[0].AcceptorState.InstanceID
+	lastInstanceID := entries[len(entries)-1].AcceptorState.InstanceID
 
 	//FIXME: set the buff size to Limit
 	data := ctx.GetValueBuffer(1024)

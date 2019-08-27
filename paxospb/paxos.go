@@ -1,25 +1,50 @@
 package paxospb
 
+var (
+	emptyState = State{}
+)
+
+// UpdateCommit is used to describe how to commit the Update instance to
+// progress the state of paxos
+type UpdateCommit struct {
+	AppliedTo uint64
+}
+
 // Update is a collection of state, entries and messages that are expected to be
 // processed by paxos's upper layer to progress the raft node modelled as state
 // machine.
 type Update struct {
-	AcceptorState
+	State
 	GroupID          uint64
 	NodeID           uint64
 	EntriesToSave    []Entry
 	CommittedEntries []Entry
 	Messages         []PaxosMsg
 	LastApplied      uint64
+	UpdateCommit     UpdateCommit
+}
+
+//IsAcceptorStateEqual ...
+func IsAcceptorStateEqual(a AcceptorState, b AcceptorState) bool {
+	return isAcceptorStateEqual(a, b)
+}
+
+func isAcceptorStateEqual(a AcceptorState, b AcceptorState) bool {
+	return true
 }
 
 //IsStateEqual ...
-func IsStateEqual(a AcceptorState, b AcceptorState) bool {
+func IsStateEqual(a State, b State) bool {
 	return isStateEqual(a, b)
 }
 
-func isStateEqual(a AcceptorState, b AcceptorState) bool {
-	return true
+//IsEmptyState ...
+func IsEmptyState(a State) bool {
+	return isStateEqual(a, emptyState)
+}
+
+func isStateEqual(a State, b State) bool {
+	return a.Commit == b.Commit
 }
 
 //IsNil ...

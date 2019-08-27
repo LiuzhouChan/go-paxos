@@ -91,14 +91,14 @@ func (q *MessageQueue) Add(msg paxospb.PaxosMsg) (bool, bool) {
 //Clear the targetQueue
 func (q *MessageQueue) gc() {
 	if q.lazyFreeCycle > 0 {
-		oldq := q.targetQueue()
+		// oldq := q.targetQueue()
 		if q.lazyFreeCycle == 1 {
 			for i := uint64(0); i < q.oldIdx; i++ {
-				oldq[i].Entries = nil
+				// oldq[i].Entries = nil
 			}
 		} else if q.cycle%q.lazyFreeCycle == 0 {
 			for i := uint64(0); i < q.size; i++ {
-				oldq[i].Entries = nil
+				// oldq[i].Entries = nil
 			}
 		}
 	}
