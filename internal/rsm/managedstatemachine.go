@@ -124,6 +124,7 @@ type IManagedStateMachine interface {
 	SaveSnapshot(string, statemachine.ISnapshotFileCollection) (uint64, error)
 	RecoverFromSnapshot(string, []statemachine.SnapshotFile) error
 	Offloaded(From)
+	Update([]byte) uint64
 	Loaded(From)
 }
 
@@ -183,6 +184,11 @@ func (ds *NativeStateMachine) Lookup(data []byte) ([]byte, error) {
 	v := ds.dataStore.Lookup(data)
 	ds.mu.RUnlock()
 	return v, nil
+}
+
+// Update ...
+func (ds *NativeStateMachine) Update(cmd []byte) uint64 {
+	return 0
 }
 
 // GetHash returns an integer value representing the state of the data store.

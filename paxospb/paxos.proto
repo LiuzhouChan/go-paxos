@@ -66,6 +66,13 @@ message Entry{
 	optional AcceptorState AcceptorState= 2 [(gogoproto.nullable) = false];
 }
 
+message Membership {
+	optional uint64 config_change_id  = 1;
+	map<uint64, string> addresses   = 2;
+	map<uint64, bool> removed       = 3;
+  }
+  
+
 message Bootstrap {
 	map<uint64, string> addresses   = 1;
 	optional bool join              = 2 [(gogoproto.nullable) = false];

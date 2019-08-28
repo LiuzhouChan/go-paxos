@@ -78,14 +78,14 @@ func (q *entryQueue) add(ent paxospb.Entry) (bool, bool) {
 
 func (q *entryQueue) gc() {
 	if q.lazyFreeCycle > 0 {
-		oldq := q.targetQueue()
+		// oldq := q.targetQueue()
 		if q.lazyFreeCycle == 1 {
 			for i := uint64(0); i < q.oldIdx; i++ {
-				oldq[i].Cmd = nil
+				// oldq[i].Cmd = nil
 			}
 		} else if q.cycle%q.lazyFreeCycle == 0 {
 			for i := uint64(0); i < q.size; i++ {
-				oldq[i].Cmd = nil
+				// oldq[i].Cmd = nil
 			}
 		}
 	}

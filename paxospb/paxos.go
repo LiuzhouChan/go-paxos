@@ -64,3 +64,17 @@ func (m *BallotNumber) IsNotLessThan(b BallotNumber) bool {
 	}
 	return m.ProposalID >= b.ProposalID
 }
+
+// IsConfigChange returns a boolean value indicating whether the entry is for
+// config change.
+func (e *Entry) IsConfigChange() bool {
+	return e.Type == ConfigChangeEntry
+}
+
+// IsEmpty returns a boolean value indicating whether the entry is Empty.
+func (e *Entry) IsEmpty() bool {
+	if e.IsConfigChange() {
+		return false
+	}
+	return len(e.AcceptorState.AccetpedValue) == 0
+}
