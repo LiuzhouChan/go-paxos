@@ -121,8 +121,8 @@ func (o *OffloadedStatus) SetOffloaded(from From) {
 type IManagedStateMachine interface {
 	Lookup([]byte) ([]byte, error)
 	GetHash() uint64
-	SaveSnapshot(string, statemachine.ISnapshotFileCollection) (uint64, error)
-	RecoverFromSnapshot(string, []statemachine.SnapshotFile) error
+	// SaveSnapshot(string, statemachine.ISnapshotFileCollection) (uint64, error)
+	// RecoverFromSnapshot(string, []statemachine.SnapshotFile) error
 	Offloaded(From)
 	Update([]byte) uint64
 	Loaded(From)
@@ -152,6 +152,7 @@ func NewNativeStateMachine(ds statemachine.IStateMachine,
 	}
 	return s
 }
+
 func (ds *NativeStateMachine) closeStateMachine() {
 	ds.dataStore.Close()
 }
@@ -188,7 +189,7 @@ func (ds *NativeStateMachine) Lookup(data []byte) ([]byte, error) {
 
 // Update ...
 func (ds *NativeStateMachine) Update(cmd []byte) uint64 {
-	return 0
+	return ds.dataStore.Update(cmd)
 }
 
 // GetHash returns an integer value representing the state of the data store.
@@ -198,47 +199,47 @@ func (ds *NativeStateMachine) GetHash() uint64 {
 
 // SaveSnapshot saves the state of the data store to the snapshot file specified
 // by the fp input string.
-func (ds *NativeStateMachine) SaveSnapshot(fp string,
-	collection statemachine.ISnapshotFileCollection) (uint64, error) {
-	writer, err := NewSnapshotWriter(fp)
-	if err != nil {
-		return 0, err
-	}
-	defer func() {
-		err = writer.Close()
-	}()
+// func (ds *NativeStateMachine) SaveSnapshot(fp string,
+// 	collection statemachine.ISnapshotFileCollection) (uint64, error) {
+// 	writer, err := NewSnapshotWriter(fp)
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	defer func() {
+// 		err = writer.Close()
+// 	}()
 
-	sz, err := ds.dataStore.SaveSnapshot(writer, collection, ds.done)
-	if err != nil {
-		return 0, err
-	}
-	if err = writer.SaveHeader(sz); err != nil {
-		return 0, err
-	}
-	return sz + SnapshotHeaderSize, nil
-}
+// 	sz, err := ds.dataStore.SaveSnapshot(writer, collection, ds.done)
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	if err = writer.SaveHeader(sz); err != nil {
+// 		return 0, err
+// 	}
+// 	return sz + SnapshotHeaderSize, nil
+// }
 
 // RecoverFromSnapshot recovers the state of the data store from the snapshot
 // file specified by the fp input string.
-func (ds *NativeStateMachine) RecoverFromSnapshot(fp string,
-	files []statemachine.SnapshotFile) (err error) {
-	reader, err := NewSnapshotReader(fp)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err = reader.Close()
-	}()
-	header, err := reader.GetHeader()
-	if err != nil {
-		return err
-	}
-	reader.ValidateHeader(header)
+// func (ds *NativeStateMachine) RecoverFromSnapshot(fp string,
+// 	files []statemachine.SnapshotFile) (err error) {
+// 	reader, err := NewSnapshotReader(fp)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer func() {
+// 		err = reader.Close()
+// 	}()
+// 	header, err := reader.GetHeader()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	reader.ValidateHeader(header)
 
-	if err = ds.dataStore.RecoverFromSnapshot(reader, files, ds.done); err != nil {
-		plog.Errorf("statemachine.RecoverFromSnapshot returned %v", err)
-		return err
-	}
-	reader.ValidatePayload(header)
-	return err
-}
+// 	if err = ds.dataStore.RecoverFromSnapshot(reader, files, ds.done); err != nil {
+// 		plog.Errorf("statemachine.RecoverFromSnapshot returned %v", err)
+// 		return err
+// 	}
+// 	reader.ValidatePayload(header)
+// 	return err
+// }
