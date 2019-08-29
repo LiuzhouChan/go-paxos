@@ -1,4 +1,4 @@
-package ipaxos
+package paxos
 
 type msgCount struct {
 }

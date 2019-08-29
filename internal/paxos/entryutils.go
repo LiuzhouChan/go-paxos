@@ -1,4 +1,4 @@
-package ipaxos
+package paxos
 
 import "github.com/LiuzhouChan/go-paxos/paxospb"
 

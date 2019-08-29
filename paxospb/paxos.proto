@@ -63,7 +63,8 @@ enum EntryType{
 
 message Entry{
 	optional EntryType Type = 1 [(gogoproto.nullable) = false];
-	optional AcceptorState AcceptorState= 2 [(gogoproto.nullable) = false];
+	optional uint64     Key = 2 [(gogoproto.nullable) = false];
+	optional AcceptorState AcceptorState= 3 [(gogoproto.nullable) = false];
 }
 
 message Membership {

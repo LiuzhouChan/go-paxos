@@ -1,1 +1,1 @@
-package ipaxos
+package paxos

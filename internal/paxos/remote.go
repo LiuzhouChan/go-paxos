@@ -1,4 +1,4 @@
-package ipaxos
+package paxos
 
 type remote struct {
 	match uint64

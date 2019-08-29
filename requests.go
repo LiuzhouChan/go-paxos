@@ -1,13 +1,20 @@
 package paxos
 
 import (
+	"crypto/md5"
+	"encoding/binary"
 	"errors"
+	"fmt"
+	"io"
+	"math/rand"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/LiuzhouChan/go-paxos/internal/settings"
 	"github.com/LiuzhouChan/go-paxos/logger"
+	"github.com/LiuzhouChan/go-paxos/paxospb"
 )
 
 const (
@@ -29,8 +36,8 @@ var (
 	ErrPayloadTooBig = errors.New("payload is too big")
 	// ErrSystemBusy indicates that the system is too busy to handle the request.
 	ErrSystemBusy = errors.New("system is too busy try again later")
-	// ErrClusterClosed indicates that the requested cluster is being shut down.
-	ErrClusterClosed = errors.New("raft cluster already closed")
+	// ErrGroupClosed indicates that the requested cluster is being shut down.
+	ErrGroupClosed = errors.New("paxos group already closed")
 	// ErrBadKey indicates that the key is bad, retry the request is recommended.
 	ErrBadKey = errors.New("bad key try again later")
 	// ErrPendingConfigChangeExist indicates that there is already a pending
@@ -53,7 +60,7 @@ func IsTempError(err error) bool {
 	return err == ErrSystemBusy ||
 		err == ErrBadKey ||
 		err == ErrPendingConfigChangeExist ||
-		err == ErrClusterClosed ||
+		err == ErrGroupClosed ||
 		err == ErrSystemStopped
 }
 
@@ -208,4 +215,245 @@ func (r *RequestState) Release() {
 		r.node = nil
 		r.pool.Put(r)
 	}
+}
+
+type proposalShard struct {
+	mu             sync.Mutex
+	proposals      *entryQueue
+	pending        map[uint64]*RequestState
+	pool           *sync.Pool
+	stopped        bool
+	expireNotified uint64
+	logicalClock
+}
+
+func newPendingProposalShard(pool *sync.Pool,
+	proposals *entryQueue, tickInMilliSecond uint64) *proposalShard {
+	gcTick := defaultGCTick
+	if gcTick == 0 {
+		panic("invalid gcTick")
+	}
+	lcu := logicalClock{
+		tickInMillisecond: tickInMilliSecond,
+		gcTick:            gcTick,
+	}
+	p := &proposalShard{
+		proposals:    proposals,
+		pending:      make(map[uint64]*RequestState),
+		logicalClock: lcu,
+		pool:         pool,
+	}
+	return p
+}
+
+func (p *proposalShard) propose(value []byte,
+	key uint64, handler ICompleteHandler,
+	timeout time.Duration) (*RequestState, error) {
+	timeoutTick := p.getTimeoutTick(timeout)
+	if timeoutTick == 0 {
+		return nil, ErrTimeoutTooSmall
+	}
+	if uint64(len(value)) > maxProposalPayloadSize {
+		return nil, ErrPayloadTooBig
+	}
+	entry := paxospb.Entry{
+		Key: key,
+		AcceptorState: paxospb.AcceptorState{
+			AccetpedValue: prepareProposalPayload(value),
+		},
+	}
+	req := p.pool.Get().(*RequestState)
+	req.completeHandler = handler
+	req.key = entry.Key
+	req.deadline = p.getTick() + timeoutTick
+	if len(req.CompletedC) > 0 {
+		req.CompletedC = make(chan RequestResult, 1)
+	}
+	p.mu.Lock()
+	p.pending[entry.Key] = req
+	p.mu.Unlock()
+	added, stopped := p.proposals.add(entry)
+	if stopped {
+		plog.Warningf("dropping proposals, group stopped")
+		p.mu.Lock()
+		delete(p.pending, entry.Key)
+		p.mu.Unlock()
+		return nil, ErrGroupClosed
+	}
+	if !added {
+		p.mu.Lock()
+		delete(p.pending, entry.Key)
+		p.mu.Unlock()
+		plog.Warningf("dropping proposals, overloaded")
+		return nil, ErrSystemBusy
+	}
+	return req, nil
+}
+
+func (p *proposalShard) close() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.stopped = true
+	if p.proposals != nil {
+		p.proposals.close()
+	}
+	for _, c := range p.pending {
+		c.notify(getTerminatedResult())
+	}
+}
+
+func (p *proposalShard) getProposal(key, now uint64) *RequestState {
+	p.mu.Lock()
+	if p.stopped {
+		p.mu.Unlock()
+		return nil
+	}
+	ps, ok := p.pending[key]
+	if ok && ps.deadline >= now {
+		delete(p.pending, key)
+		p.mu.Unlock()
+		return ps
+	}
+	p.mu.Unlock()
+	return nil
+}
+
+func (p *proposalShard) applied(key, result uint64, rejected bool) {
+	now := p.getTick()
+	var code RequestResultCode
+	if rejected {
+		code = requestRejected
+	} else {
+		code = requestCompleted
+	}
+	ps := p.getProposal(key, now)
+	if ps != nil {
+		ps.notify(RequestResult{code: code, result: result})
+	}
+	tick := p.getTick()
+	if tick != p.expireNotified {
+		p.gcAt(now)
+		p.expireNotified = tick
+	}
+}
+
+func (p *proposalShard) gc() {
+	now := p.getTick()
+	p.gcAt(now)
+}
+
+func (p *proposalShard) gcAt(now uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stopped {
+		return
+	}
+	if now-p.lastGcTime < p.getTick() {
+		return
+	}
+	p.lastGcTime = now
+	deletedKeys := make(map[uint64]bool)
+	for key, pRec := range p.pending {
+		if pRec.deadline < now {
+			pRec.notify(getTimeoutResult())
+			deletedKeys[key] = true
+		}
+	}
+	if len(deletedKeys) == 0 {
+		return
+	}
+	for key := range deletedKeys {
+		delete(p.pending, key)
+	}
+}
+
+type keyGenerator struct {
+	randMu sync.Mutex
+	rand   *rand.Rand
+}
+
+func (k *keyGenerator) nextKey() uint64 {
+	k.randMu.Lock()
+	v := k.rand.Uint64()
+	k.randMu.Unlock()
+	return v
+}
+
+func getRandomGenerator(groupID, nodeID uint64,
+	addr string, partition uint64) *keyGenerator {
+	pid := os.Getpid()
+	nano := time.Now().UnixNano()
+	seedStr := fmt.Sprintf("%d-%d-%d-%d-%s-%d",
+		pid, nano, groupID, nodeID, addr, partition)
+	m := md5.New()
+	if _, err := io.WriteString(m, seedStr); err != nil {
+		panic(err)
+	}
+	md5sum := m.Sum(nil)
+	seed := binary.LittleEndian.Uint64(md5sum)
+	return &keyGenerator{rand: rand.New(rand.NewSource(int64(seed)))}
+}
+
+type pendingProposal struct {
+	shards []*proposalShard
+	keyg   []*keyGenerator
+	ps     uint64
+	idx    uint64
+}
+
+func newPendingProposal(pool *sync.Pool, proposals *entryQueue,
+	groupID, nodeID uint64, paxosAddress string, tickInMilliSecond uint64) *pendingProposal {
+	ps := uint64(16)
+	p := &pendingProposal{
+		shards: make([]*proposalShard, ps),
+		keyg:   make([]*keyGenerator, ps),
+		ps:     ps,
+		idx:    0,
+	}
+	for i := uint64(0); i < ps; i++ {
+		p.shards[i] = newPendingProposalShard(pool, proposals, tickInMilliSecond)
+		p.keyg[i] = getRandomGenerator(groupID, nodeID, paxosAddress, i)
+	}
+	return p
+}
+
+func (p *pendingProposal) propose(value []byte, handler ICompleteHandler,
+	timeout time.Duration) (*RequestState, error) {
+	key := p.nextKey()
+	pp := p.shards[key%p.ps]
+	return pp.propose(value, key, handler, timeout)
+}
+
+func (p *pendingProposal) nextKey() uint64 {
+	p.idx++
+	return p.keyg[p.idx%p.ps].nextKey()
+}
+
+func (p *pendingProposal) close() {
+	for _, pp := range p.shards {
+		pp.close()
+	}
+}
+
+func (p *pendingProposal) applied(key uint64, result uint64, rejected bool) {
+	pp := p.shards[key%p.ps]
+	pp.applied(key, result, rejected)
+}
+
+func (p *pendingProposal) increaseTick() {
+	for i := uint64(0); i < p.ps; i++ {
+		p.shards[i].increaseTick()
+	}
+}
+
+func (p *pendingProposal) gc() {
+	for i := uint64(0); i < p.ps; i++ {
+		p.shards[i].gc()
+	}
+}
+
+func prepareProposalPayload(cmd []byte) []byte {
+	dst := make([]byte, len(cmd))
+	copy(dst, cmd)
+	return dst
 }
