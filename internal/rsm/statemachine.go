@@ -32,7 +32,7 @@ type Commit struct {
 
 	// InitialSnapshot   bool
 	// SnapshotRequested bool
-	Entry paxospb.Entry
+	Entries []paxospb.Entry
 }
 
 // SMFactoryFunc is the function type for creating an IStateMachine instance
@@ -184,10 +184,11 @@ func (s *StateMachine) handle(batch []Commit) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, b := range batch {
-		entry := b.Entry
-		s.updateLastApplied(b.InstanceID)
-		result := s.sm.Update(entry.AcceptorState.AccetpedValue)
-		s.onUpdateApplied(entry, result, false, false)
+		for _, entry := range b.Entries {
+			s.updateLastApplied(entry.AcceptorState.InstanceID)
+			result := s.sm.Update(entry.AcceptorState.AccetpedValue)
+			s.onUpdateApplied(entry, result, false, false)
+		}
 	}
 }
 

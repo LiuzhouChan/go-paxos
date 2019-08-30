@@ -45,6 +45,7 @@ func (p *Peer) Tick() {
 func (p *Peer) Propose(value []byte) {
 	p.i.Handle(paxospb.PaxosMsg{
 		MsgType: paxospb.Propose,
+		From:    p.i.nodeID,
 		Value:   stringutil.BytesDeepCopy(value),
 	})
 }
@@ -86,6 +87,11 @@ func (p *Peer) Commit(ud paxospb.Update) {
 //NotifyPaxosLastApplied ...
 func (p *Peer) NotifyPaxosLastApplied(lastApplied uint64) {
 	p.i.setApplied(lastApplied)
+}
+
+// GetUpdate returns the current state of the Peer.
+func (p *Peer) GetUpdate(moreEntriesToApply bool) paxospb.Update {
+	return getUpdate(p.i, p.prevState, moreEntriesToApply)
 }
 
 func getUpdateCommit(ud paxospb.Update) paxospb.UpdateCommit {

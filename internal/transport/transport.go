@@ -294,7 +294,7 @@ func lazyFree(reqs []paxospb.PaxosMsg,
 	mb paxospb.MessageBatch) ([]paxospb.PaxosMsg, paxospb.MessageBatch) {
 	if lazyFreeCycle > 0 {
 		for i := 0; i < len(reqs); i++ {
-			reqs[i].Entries = nil
+			reqs[i].Value = nil
 		}
 		mb.Requests = []paxospb.PaxosMsg{}
 	}
