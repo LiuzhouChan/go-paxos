@@ -1,6 +1,10 @@
 package paxos
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/LiuzhouChan/go-paxos/internal/settings"
+)
 
 const (
 	//PaxosMajor ...
@@ -11,6 +15,10 @@ const (
 	PaxosPatch = 1
 	// DEVVersion is a boolean value to indicate whether this is a dev version
 	DEVVersion = true
+)
+
+var (
+	delaySampleRatio uint64 = settings.Soft.LatencySampleRatio
 )
 
 //NodeHost ...

@@ -4,6 +4,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/LiuzhouChan/go-paxos/paxospb"
 )
 
 const (
@@ -78,4 +80,70 @@ func (s *sample) percentile(p float64) int64 {
 		return (s.samples[i] + s.samples[i-1]) / 2
 	}
 	return 0
+}
+
+type profiler struct {
+	ratio           int64
+	sampleCount     int64
+	iteration       int64
+	commitIteration int64
+	propose         *sample
+	step            *sample
+	save            *sample
+	cs              *sample
+	ec              *sample
+	exec            *sample
+}
+
+func newProfiler(sampleRatio int64) *profiler {
+	return &profiler{
+		ratio:   sampleRatio,
+		propose: newSample(),
+		step:    newSample(),
+		save:    newSample(),
+		cs:      newSample(),
+		ec:      newSample(),
+		exec:    newSample(),
+	}
+}
+
+func (s *profiler) newIteration() {
+	s.iteration++
+	if s.ratio > 0 && s.iteration%s.ratio == 0 {
+		s.propose.sampled = true
+		s.step.sampled = true
+		s.save.sampled = true
+		s.cs.sampled = true
+		s.ec.sampled = true
+		s.sampleCount++
+	} else {
+		s.propose.sampled = false
+		s.step.sampled = false
+		s.save.sampled = false
+		s.cs.sampled = false
+		s.ec.sampled = false
+	}
+}
+
+func (s *profiler) newCommitIteration() {
+	s.commitIteration++
+	if s.ratio > 0 && s.commitIteration%s.ratio == 0 {
+		s.exec.sampled = true
+	} else {
+		s.exec.sampled = false
+	}
+}
+
+func (s *profiler) recordEntryCount(updates []paxospb.Update) {
+	if !s.ec.sampled {
+		return
+	}
+	c := int64(0)
+	for _, ud := range updates {
+		c += int64(len(ud.EntriesToSave))
+	}
+	s.ec.samples = append(s.ec.samples, c)
+	if len(s.ec.samples) >= maxSampleCount {
+		s.ec.samples = s.ec.samples[1:]
+	}
 }
