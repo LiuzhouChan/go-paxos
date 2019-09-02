@@ -2,7 +2,6 @@ package config
 
 import (
 	"github.com/LiuzhouChan/go-paxos/paxosio"
-	"github.com/lni/dragonboat/raftio"
 )
 
 // PaxosRPCFactoryFunc is the factory function that creates the Raft RPC module
@@ -13,7 +12,7 @@ type PaxosRPCFactoryFunc func(NodeHostConfig,
 // LogDBFactoryFunc is the factory function that creates NodeHost's persistent
 // storage module known as Log DB.
 type LogDBFactoryFunc func(dirs []string,
-	lowLatencyDirs []string) (raftio.ILogDB, error)
+	lowLatencyDirs []string) (paxosio.ILogDB, error)
 
 //Config ...
 type Config struct {

@@ -82,8 +82,8 @@ type Transport struct {
 	handler            atomic.Value
 	ctx                context.Context
 	cancel             context.CancelFunc
-	snapshotCount      int32
-	snapshotQueueMu    sync.Mutex
+	// snapshotCount      int32
+	// snapshotQueueMu    sync.Mutex
 }
 
 // NewTransport creates a new Transport object.

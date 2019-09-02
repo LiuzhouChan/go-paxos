@@ -35,6 +35,8 @@ type soft struct {
 	RDBLRUCacheSize uint64
 
 	LatencySampleRatio uint64
+
+	NodeHostSyncPoolSize uint64
 }
 
 func getSoftSettings() soft {
@@ -57,6 +59,7 @@ func getDefaultSoftSettings() soft {
 		RDBMaxBackgroundFlushes:     2,
 		RDBLRUCacheSize:             0,
 		BatchedEntryApply:           0,
+		NodeHostSyncPoolSize:        8,
 		LatencySampleRatio:          0,
 	}
 }
