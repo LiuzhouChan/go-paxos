@@ -41,7 +41,7 @@ type SMFactoryFunc func(groupID uint64,
 
 // INodeProxy is the interface used as proxy to a nodehost.
 type INodeProxy interface {
-	ApplyUpdate(paxospb.Entry, uint64, bool, bool, bool)
+	ApplyUpdate(paxospb.Entry, uint64, bool, bool)
 	NodeID() uint64
 	GroupID() uint64
 }
@@ -152,7 +152,7 @@ func (s *StateMachine) updateLastApplied(lastApplied uint64) {
 func (s *StateMachine) onUpdateApplied(ent paxospb.Entry,
 	result uint64, ignored bool, rejected bool) {
 	if !ignored {
-		s.node.ApplyUpdate(ent, result, rejected, ignored, false)
+		s.node.ApplyUpdate(ent, result, rejected, ignored)
 	}
 }
 

@@ -10,10 +10,16 @@ import (
 	ipaxos "github.com/LiuzhouChan/go-paxos/internal/paxos"
 	"github.com/LiuzhouChan/go-paxos/internal/rsm"
 	"github.com/LiuzhouChan/go-paxos/internal/server"
+	"github.com/LiuzhouChan/go-paxos/internal/settings"
 	"github.com/LiuzhouChan/go-paxos/internal/transport"
 	"github.com/LiuzhouChan/go-paxos/logger"
 	"github.com/LiuzhouChan/go-paxos/paxosio"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
+)
+
+var (
+	incomingProposalsMaxLen = settings.Soft.IncomingProposalQueueLength
+	lazyFreeCycle           = settings.Soft.LazyFreeCycle
 )
 
 type node struct {
@@ -46,13 +52,58 @@ type node struct {
 	}
 }
 
-func newNode(paxosAddress string, peers map[uint64]string) {
-
+func newNode(paxosAddress string,
+	peers map[uint64]string,
+	initialMember bool,
+	dataStore rsm.IManagedStateMachine,
+	commitReady func(uint64),
+	sendMessage func(paxospb.PaxosMsg),
+	mq *server.MessageQueue,
+	stopc chan struct{},
+	nodeRegistry transport.INodeRegistry,
+	requestStatePool *sync.Pool,
+	config config.Config,
+	tickMillisecond uint64,
+	ldb paxosio.ILogDB) *node {
+	proposals := newEntryQueue(incomingProposalsMaxLen, lazyFreeCycle)
+	pp := newPendingProposal(requestStatePool, proposals,
+		config.GroupID, config.NodeID, paxosAddress, tickMillisecond)
+	lr := logdb.NewLogReader(config.GroupID, config.NodeID, ldb)
+	rc := &node{
+		config:            config,
+		paxosAddress:      paxosAddress,
+		incomingProposals: proposals,
+		commitReady:       commitReady,
+		stopc:             stopc,
+		pendingProposals:  pp,
+		nodeRegistry:      nodeRegistry,
+		logreader:         lr,
+		sendPaxosMessage:  sendMessage,
+		mq:                mq,
+		logdb:             ldb,
+		groupID:           config.GroupID,
+		nodeID:            config.NodeID,
+	}
+	nodeProxy := newNodeProxy(rc)
+	sm := rsm.NewStateMachine(dataStore, nodeProxy)
+	rc.commitC = sm.CommitC()
+	rc.sm = sm
+	rc.startPaxos(config, rc.logreader, peers, initialMember)
+	return rc
 }
 
 func (rc *node) startPaxos(cc config.Config,
 	logdb ipaxos.ILogDB, peers map[uint64]string, initial bool) {
-
+	newNode := rc.replayLog(cc.GroupID, cc.NodeID)
+	pas := make([]ipaxos.PeerAddress, 0)
+	for k, v := range peers {
+		pas = append(pas, ipaxos.PeerAddress{NodeID: k, Address: v})
+	}
+	node, err := ipaxos.LaunchPeer(&cc, logdb, pas, initial, newNode)
+	if err != nil {
+		panic(err)
+	}
+	rc.node = node
 }
 
 func (rc *node) close() {

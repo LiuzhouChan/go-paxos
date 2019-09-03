@@ -5,8 +5,9 @@ package settings
 var Soft = getSoftSettings()
 
 type soft struct {
-	StreamConnections uint64
-	LazyFreeCycle     uint64
+	StreamConnections           uint64
+	LazyFreeCycle               uint64
+	IncomingProposalQueueLength uint64
 
 	// NodeCommitChanLength defined the length of each node's commitC channel.
 	NodeCommitChanLength uint64
@@ -54,6 +55,7 @@ func getDefaultSoftSettings() soft {
 		PerConnectionRecvBufSize:    64 * 1024,
 		GetConnectedTimeoutSecond:   5,
 		NodeReloadMillisecond:       200,
+		IncomingProposalQueueLength: 2048,
 		StepEngineCommitWorkerCount: 16,
 		RDBMaxBackgroundCompactions: 2,
 		RDBMaxBackgroundFlushes:     2,

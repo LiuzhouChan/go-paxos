@@ -3,7 +3,9 @@ package paxos
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/LiuzhouChan/go-paxos/config"
@@ -12,6 +14,9 @@ import (
 	"github.com/LiuzhouChan/go-paxos/internal/server"
 	"github.com/LiuzhouChan/go-paxos/internal/settings"
 	"github.com/LiuzhouChan/go-paxos/internal/transport"
+	"github.com/LiuzhouChan/go-paxos/internal/utils/lang"
+	"github.com/LiuzhouChan/go-paxos/internal/utils/logutil"
+	"github.com/LiuzhouChan/go-paxos/internal/utils/stringutil"
 	"github.com/LiuzhouChan/go-paxos/internal/utils/syncutil"
 	"github.com/LiuzhouChan/go-paxos/paxosio"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
@@ -33,6 +38,7 @@ var (
 	delaySampleRatio  uint64 = settings.Soft.LatencySampleRatio
 	streamConnections        = settings.Soft.StreamConnections
 	rsPoolSize               = settings.Soft.NodeHostSyncPoolSize
+	monitorInterval          = 100 * time.Millisecond
 )
 
 var (
@@ -164,6 +170,21 @@ func (nh *NodeHost) getGroupNotLocked(groupID uint64) (*node, bool) {
 	return v.(*node), true
 }
 
+func (nh *NodeHost) getGroupAndQueueNotLocked(groupID uint64) (*node,
+	*server.MessageQueue, bool) {
+	nh.groupMu.RLock()
+	defer nh.groupMu.RUnlock()
+	v, ok := nh.getGroupNotLocked(groupID)
+	if !ok {
+		return nil, nil, false
+	}
+	q, ok := nh.groupMu.requests[groupID]
+	if !ok {
+		return nil, nil, false
+	}
+	return v, q, true
+}
+
 func (nh *NodeHost) getGroup(groupID uint64) (*node, bool) {
 	nh.groupMu.RLock()
 	v, ok := nh.groupMu.groups.Load(groupID)
@@ -215,12 +236,6 @@ func (nh *NodeHost) propose(groupID uint64, cmd []byte, handler ICompleteHandler
 	return req, err
 }
 
-func (nh *NodeHost) startGroup(nodes map[uint64]string,
-	join bool, createStateMachine rsm.ManagedStateMachineFactory,
-	stopc chan struct{}, config config.Config) error {
-	return nil
-}
-
 func (nh *NodeHost) createPools() {
 	nh.rsPool = make([]*sync.Pool, rsPoolSize)
 	for i := uint64(0); i < rsPoolSize; i++ {
@@ -253,6 +268,267 @@ func (nh *NodeHost) createTransport() {
 	nh.transport.SetMessageHandler(nh.msgHandler)
 }
 
+func (nh *NodeHost) stopNode(groupID uint64, nodeID uint64, nodeCheck bool) error {
+	nh.groupMu.Lock()
+	defer nh.groupMu.Unlock()
+	v, ok := nh.groupMu.groups.Load(groupID)
+	if !ok {
+		return ErrGroupNotFound
+	}
+	group := v.(*node)
+	if nodeCheck && group.nodeID != nodeID {
+		return ErrGroupNotFound
+	}
+	nh.groupMu.groups.Delete(groupID)
+	delete(nh.groupMu.requests, groupID)
+	nh.groupMu.gsi++
+	group.notifyOffloaded(rsm.FromNodeHost)
+	return nil
+}
+
+func (nh *NodeHost) initialize(ctx context.Context,
+	nhConfig config.NodeHostConfig) error {
+	nh.execEngine = newExecEngine(nh, nh.serverCtx, nh.logdb, nh.sendNoOPMessage)
+	nh.setInitialized()
+	return nil
+}
+
+func (nh *NodeHost) tickWorkerMain() {
+	count := uint64(0)
+	idx := uint64(0)
+	nodes := make([]*node, 0)
+	qs := make(map[uint64]*server.MessageQueue)
+	tf := func() bool {
+		count++
+		nh.increateTick()
+		if count%nh.nhConfig.RTTMillisecond == 0 {
+			// one RTT
+			idx, nodes, qs = nh.getCurrentGroups(idx, nodes, qs)
+
+		}
+		return false
+	}
+	lang.RunTicker(time.Millisecond, tf, nh.stopper.ShouldStop(), nil)
+}
+
+func (nh *NodeHost) getCurrentGroups(index uint64,
+	groups []*node, queues map[uint64]*server.MessageQueue) (uint64,
+	[]*node, map[uint64]*server.MessageQueue) {
+	newIndex := nh.getGroupSetIndex()
+	if newIndex == index {
+		return index, groups, queues
+	}
+	newGroups := groups[:0]
+	newQueues := make(map[uint64]*server.MessageQueue)
+	nh.forEachGroup(func(gid uint64, node *node) bool {
+		newGroups = append(newGroups, node)
+		v, ok := nh.groupMu.requests[gid]
+		if !ok {
+			panic("inconsistent received messageC map")
+		}
+		newQueues[gid] = v
+		return true
+	})
+	return newIndex, newGroups, newQueues
+}
+
+func (nh *NodeHost) asyncSendPaxosRequest(msg paxospb.PaxosMsg) {
+	nh.transport.ASyncSend(msg)
+}
+
+func (nh *NodeHost) sendTickMessage(groups []*node,
+	queues map[uint64]*server.MessageQueue) {
+	m := paxospb.PaxosMsg{MsgType: paxospb.LocalTick}
+	for _, n := range groups {
+		q, ok := queues[n.groupID]
+		if !ok || nh.initialized() {
+			continue
+		}
+		q.Add(m)
+		nh.execEngine.setNodeReady(n.groupID)
+	}
+}
+
+func (nh *NodeHost) sendNoOPMessage(groupID, NodeID uint64) {
+	batch := paxospb.MessageBatch{
+		Requests: make([]paxospb.PaxosMsg, 0),
+	}
+	msg := paxospb.PaxosMsg{
+		MsgType: paxospb.NoOP,
+		To:      NodeID,
+		From:    NodeID,
+		GroupId: groupID,
+	}
+	batch.Requests = append(batch.Requests, msg)
+	nh.msgHandler.HandleMessageBatch(batch)
+}
+
+func (nh *NodeHost) closeStoppedGroups() {
+	chans := make([]<-chan struct{}, 0)
+	keys := make([]uint64, 0)
+	nodeIDs := make([]uint64, 0)
+	nh.forEachGroup(func(gid uint64, node *node) bool {
+		chans = append(chans, node.shouldStop())
+		keys = append(keys, gid)
+		nodeIDs = append(nodeIDs, node.nodeID)
+		return true
+	})
+	if len(chans) == 0 {
+		return
+	}
+
+	cases := make([]reflect.SelectCase, len(chans)+1)
+	for i, ch := range chans {
+		cases[i] = reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(ch),
+		}
+	}
+	cases[len(chans)] = reflect.SelectCase{Dir: reflect.SelectDefault}
+	chosen, _, ok := reflect.Select(cases)
+	for !ok && chosen < len(keys) {
+		groupID := keys[chosen]
+		nodeID := nodeIDs[chosen]
+		if err := nh.StopNode(groupID, nodeID); err != nil {
+			plog.Errorf("failed to remove group %d", groupID)
+		}
+	}
+}
+
+func (nh *NodeHost) nodeMonitorMain(ctx context.Context,
+	nhConfig config.NodeHostConfig) {
+	count := uint64(0)
+	tf := func() bool {
+		count++
+		nh.closeStoppedGroups()
+		return false
+	}
+	lang.RunTicker(monitorInterval, tf, nh.stopper.ShouldStop(), nil)
+}
+
+//StopGroup ...
+func (nh *NodeHost) StopGroup(groupID uint64) error {
+	return nh.stopNode(groupID, 0, false)
+}
+
+//StopNode ...
+func (nh *NodeHost) StopNode(groupID uint64, nodeID uint64) error {
+	return nh.stopNode(groupID, nodeID, true)
+}
+
+func (nh *NodeHost) initialized() bool {
+	select {
+	case <-nh.initializedC:
+		return true
+	default:
+		return false
+	}
+}
+
+func (nh *NodeHost) waitUntilInitialized() {
+	<-nh.initializedC
+}
+
+func (nh *NodeHost) setInitialized() {
+	close(nh.initializedC)
+}
+
+func (nh *NodeHost) increateTick() {
+	atomic.AddUint64(&nh.tick, 1)
+}
+
+func (nh *NodeHost) getTick() uint64 {
+	return atomic.LoadUint64(&nh.tick)
+}
+
+func (nh *NodeHost) getGroupSetIndex() uint64 {
+	nh.groupMu.RLock()
+	v := nh.groupMu.gsi
+	nh.groupMu.RUnlock()
+	return v
+}
+
+func (nh *NodeHost) describe() string {
+	return nh.PaxosAddress()
+}
+
+func (nh *NodeHost) bootstrapGroup(nodes map[uint64]string,
+	join bool, config config.Config) (map[uint64]string, bool, error) {
+	binfo, err := nh.logdb.GetBootstrapInfo(config.GroupID, config.NodeID)
+	if err == paxosio.ErrNoBootstrapInfo {
+		var members map[uint64]string
+		if !join {
+			members = nodes
+		}
+		bootstrap := paxospb.Bootstrap{
+			Join:      join,
+			Addresses: make(map[uint64]string),
+		}
+		for nid, addr := range nodes {
+			bootstrap.Addresses[nid] = stringutil.CleanAddress(addr)
+		}
+		err = nh.logdb.SaveBootstrapInfo(config.GroupID, config.NodeID, bootstrap)
+		plog.Infof("bootstrap for %s found node not bootstrapped, %v",
+			logutil.DescribeNode(config.GroupID, config.NodeID), members)
+		return members, !join, err
+	}
+	plog.Infof("bootstrap for %s returns %v", logutil.DescribeNode(config.GroupID, config.NodeID),
+		binfo.Addresses)
+	return binfo.Addresses, !join, nil
+}
+
+func (nh *NodeHost) startGroup(nodes map[uint64]string,
+	join bool,
+	createStateMachine rsm.ManagedStateMachineFactory,
+	stopc chan struct{},
+	config config.Config) error {
+	plog.Infof("start group called for %s, join %t, nodes %v",
+		logutil.DescribeNode(config.GroupID, config.NodeID), join, nodes)
+	nh.groupMu.Lock()
+	defer nh.groupMu.Unlock()
+	if nh.groupMu.stopped {
+		return ErrSystemStopped
+	}
+	if _, ok := nh.groupMu.groups.Load(config.GroupID); ok {
+		return ErrGroupAlreadyExist
+	}
+	if join && len(nodes) > 0 {
+		plog.Errorf("trying to join %s with initial member list %v",
+			logutil.DescribeNode(config.GroupID, config.NodeID), nodes)
+		return ErrInvalidGroupSettings
+	}
+	address, _, err := nh.bootstrapGroup(nodes, join, config)
+	if err == ErrInvalidGroupSettings {
+		return err
+	}
+	if err != nil {
+		panic(err)
+	}
+	plog.Infof("bootstrap for %s returned address list %v",
+		logutil.DescribeNode(config.GroupID, config.NodeID), address)
+	for k, v := range address {
+		if k != config.NodeID {
+			plog.Infof("AddNode called with node %s, addr %s",
+				logutil.DescribeNode(config.GroupID, config.NodeID), address)
+			nh.nodes.AddNode(config.GroupID, k, v)
+		}
+	}
+	return nil
+}
+
+type nodeUser struct {
+	nh           *NodeHost
+	node         *node
+	setNodeReady func(groupID uint64)
+}
+
+func (nu *nodeUser) Propose(groupID uint64, cmd []byte,
+	timeout time.Duration) (*RequestState, error) {
+	req, err := nu.node.propose(cmd, nil, timeout)
+	nu.setNodeReady(groupID)
+	return req, err
+}
+
 func getTimeoutFromContext(ctx context.Context) (time.Duration, error) {
 	d, ok := ctx.Deadline()
 	if !ok {
@@ -274,5 +550,15 @@ func newNodeHostMessageHandler(nh *NodeHost) *messageHandler {
 }
 
 func (h *messageHandler) HandleMessageBatch(msg paxospb.MessageBatch) {
-
+	nh := h.nh
+	for _, req := range msg.Requests {
+		_, q, ok := nh.getGroupAndQueueNotLocked(req.GroupId)
+		if ok {
+			// here we only deal with the regular message
+			if added, stopped := q.Add(req); !added || stopped {
+				plog.Warningf("dropped an incomming message")
+			}
+		}
+		nh.execEngine.setNodeReady(req.GroupId)
+	}
 }
