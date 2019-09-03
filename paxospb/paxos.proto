@@ -20,6 +20,7 @@ enum MessageType {
 	PaxosLearnerProposerSendSuccess = 9;
 	Propose = 10;
 	NoOP = 11;
+	PaxosProposalSendNewValue = 12;
 }
 
 message PaxosDataStatus {

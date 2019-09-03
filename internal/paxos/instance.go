@@ -41,7 +41,6 @@ type instance struct {
 
 	remotes   map[uint64]*remote
 	followers map[uint64]*remote
-	handlers  [numMessageTypes]handlerFunc
 	handle    setpFunc
 }
 
@@ -58,7 +57,6 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 		remotes:   make(map[uint64]*remote),
 		followers: make(map[uint64]*remote),
 	}
-	i.initializeHandlerMap()
 	i.handle = defaultHandle
 	return i
 }
@@ -129,14 +127,33 @@ func (i *instance) tick() {
 	i.learner.tick()
 }
 
-func (i *instance) initializeHandlerMap() {
-	// acceptor
-
-	// proposer
-
-	// learner
+func defaultHandle(i *instance, msg paxospb.PaxosMsg) {
+	if msg.MsgType == paxospb.PaxosPrepareReply ||
+		msg.MsgType == paxospb.PaxosAcceptReply ||
+		msg.MsgType == paxospb.PaxosProposalSendNewValue {
+		i.handleMessageForProposer(msg)
+	} else if msg.MsgType == paxospb.PaxosPrepare ||
+		msg.MsgType == paxospb.PaxosAccept {
+		i.handleMessageForAcceptor(msg)
+	} else if msg.MsgType == paxospb.PaxosLearnerAskForLearn ||
+		msg.MsgType == paxospb.PaxosLearnerSendLearnValue ||
+		msg.MsgType == paxospb.PaxosLearnerProposerSendSuccess ||
+		msg.MsgType == paxospb.PaxosLearnerConfirmAskForLearn ||
+		msg.MsgType == paxospb.PaxosLearnerSendNowInstanceID {
+		i.handleMessageForLearner(msg)
+	} else {
+		plog.Errorf("Invalid msg type %v", msg.MsgType)
+	}
 }
 
-func defaultHandle(i *instance, msg paxospb.PaxosMsg) {
+func (i *instance) handleMessageForProposer(msg paxospb.PaxosMsg) {
+
+}
+
+func (i *instance) handleMessageForAcceptor(msg paxospb.PaxosMsg) {
+
+}
+
+func (i *instance) handleMessageForLearner(msg paxospb.PaxosMsg) {
 
 }
