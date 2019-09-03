@@ -65,7 +65,7 @@ func newNode(paxosAddress string,
 	config config.Config,
 	tickMillisecond uint64,
 	ldb paxosio.ILogDB) *node {
-	proposals := newEntryQueue(incomingProposalsMaxLen, lazyFreeCycle)
+	proposals := newEntryQueue(incomingProposalsMaxLen)
 	pp := newPendingProposal(requestStatePool, proposals,
 		config.GroupID, config.NodeID, paxosAddress, tickMillisecond)
 	lr := logdb.NewLogReader(config.GroupID, config.NodeID, ldb)
@@ -154,6 +154,7 @@ func (rc *node) entriesToApply(ents []paxospb.Entry) (nents []paxospb.Entry) {
 	if rc.stopped() {
 		return
 	}
+	// last instance id of ents
 	li := ents[len(ents)-1].AcceptorState.InstanceID
 	if li < rc.publishedInstanceID {
 		plog.Panicf("%s got entries [%d-%d] older than current %d", rc.describe(),
@@ -282,14 +283,12 @@ func (rc *node) handleEvents() bool {
 }
 
 func (rc *node) handleProposals() bool {
-	entries := rc.incomingProposals.get()
-	for _, entry := range entries {
-		rc.node.Propose(entry.AcceptorState.AccetpedValue)
+	ent, ok := rc.incomingProposals.get()
+	if !ok {
+		return false
 	}
-	if len(entries) > 0 {
-		return true
-	}
-	return false
+	rc.node.Propose(ent.AcceptorState.AccetpedValue)
+	return true
 }
 
 func (rc *node) handleLocalTickMessage(count uint64) {

@@ -7,7 +7,7 @@ var Soft = getSoftSettings()
 type soft struct {
 	StreamConnections           uint64
 	LazyFreeCycle               uint64
-	IncomingProposalQueueLength uint64
+	IncomingProposalQueueLength int
 
 	// NodeCommitChanLength defined the length of each node's commitC channel.
 	NodeCommitChanLength uint64

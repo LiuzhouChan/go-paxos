@@ -18,27 +18,20 @@ import (
 	"sync"
 
 	"github.com/LiuzhouChan/go-paxos/paxospb"
+	lane "gopkg.in/oleiade/lane.v1"
 )
 
 type entryQueue struct {
-	size          uint64
-	left          []paxospb.Entry
-	right         []paxospb.Entry
-	leftInWrite   bool
-	stopped       bool
-	idx           uint64
-	oldIdx        uint64
-	cycle         uint64
-	lazyFreeCycle uint64
-	mu            sync.Mutex
+	size    int
+	queue   *lane.Queue
+	stopped bool
+	mu      sync.Mutex
 }
 
-func newEntryQueue(size uint64, lazyFreeCycle uint64) *entryQueue {
+func newEntryQueue(size int) *entryQueue {
 	e := &entryQueue{
-		size:          size,
-		lazyFreeCycle: lazyFreeCycle,
-		left:          make([]paxospb.Entry, size),
-		right:         make([]paxospb.Entry, size),
+		size:  size,
+		queue: lane.NewQueue(),
 	}
 	return e
 }
@@ -49,19 +42,9 @@ func (q *entryQueue) close() {
 	q.stopped = true
 }
 
-func (q *entryQueue) targetQueue() []paxospb.Entry {
-	var t []paxospb.Entry
-	if q.leftInWrite {
-		t = q.left
-	} else {
-		t = q.right
-	}
-	return t
-}
-
 func (q *entryQueue) add(ent paxospb.Entry) (bool, bool) {
 	q.mu.Lock()
-	if q.idx >= q.size {
+	if q.queue.Size() >= q.size {
 		q.mu.Unlock()
 		return false, q.stopped
 	}
@@ -69,39 +52,18 @@ func (q *entryQueue) add(ent paxospb.Entry) (bool, bool) {
 		q.mu.Unlock()
 		return false, true
 	}
-	w := q.targetQueue()
-	w[q.idx] = ent
-	q.idx++
-	q.mu.Unlock()
+	q.queue.Enqueue(ent)
 	return true, false
 }
 
-func (q *entryQueue) gc() {
-	if q.lazyFreeCycle > 0 {
-		// oldq := q.targetQueue()
-		if q.lazyFreeCycle == 1 {
-			for i := uint64(0); i < q.oldIdx; i++ {
-				// oldq[i].Cmd = nil
-			}
-		} else if q.cycle%q.lazyFreeCycle == 0 {
-			for i := uint64(0); i < q.size; i++ {
-				// oldq[i].Cmd = nil
-			}
-		}
-	}
-}
-
-func (q *entryQueue) get() []paxospb.Entry {
+func (q *entryQueue) get() (paxospb.Entry, bool) {
 	q.mu.Lock()
-	defer q.mu.Unlock()
-	q.cycle++
-	sz := q.idx
-	q.idx = 0
-	t := q.targetQueue()
-	q.leftInWrite = !q.leftInWrite
-	q.gc()
-	q.oldIdx = sz
-	return t[:sz]
+	if q.stopped || q.queue.Empty() {
+		q.mu.Unlock()
+		return paxospb.Entry{}, false
+	}
+	ent := q.queue.Dequeue()
+	return ent.(paxospb.Entry), true
 }
 
 type readyGroup struct {

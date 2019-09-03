@@ -304,7 +304,7 @@ func (nh *NodeHost) tickWorkerMain() {
 		if count%nh.nhConfig.RTTMillisecond == 0 {
 			// one RTT
 			idx, nodes, qs = nh.getCurrentGroups(idx, nodes, qs)
-
+			nh.sendTickMessage(nodes, qs)
 		}
 		return false
 	}
