@@ -26,12 +26,9 @@ func (st state) String() string {
 
 //proposer ...
 type proposer struct {
-	instance       IInstanceProxy
-	prepareTimeout uint64
-	acceptTimeout  uint64
-	nodeID         uint64
-	remote         map[uint64]bool
-
+	instance                    *instance
+	nodeID                      uint64
+	remote                      map[uint64]bool
 	proposalID                  uint64
 	instanceID                  uint64
 	highestOtherProposalID      uint64
@@ -40,14 +37,16 @@ type proposer struct {
 	canSkipPrepare              bool
 	rejectBySomeone             bool
 	votes                       map[uint64]bool
-	tickCount                   uint64
 	preparingTick               uint64
 	acceptingTick               uint64
+	prepareTimeout              uint64
+	acceptTimeout               uint64
 	st                          state
 }
 
-func newProposer() *proposer {
+func newProposer(i *instance) *proposer {
 	p := &proposer{
+		instance:   i,
 		proposalID: 1,
 		value:      []byte{},
 	}
@@ -55,25 +54,11 @@ func newProposer() *proposer {
 }
 
 func (p *proposer) newInstance() {
-	p.reset(p.instanceID + 1)
-}
-
-func (p *proposer) reset(instanceID uint64) {
-	if p.instanceID != instanceID {
-		p.proposalID = 1
-	}
-	p.instanceID = instanceID
-
-	p.st = closing
-	p.preparingTick = 0
-	p.acceptingTick = 0
-
-	p.highestOtherProposalID = 0
-	p.highestOtherPreAcceptBallot = paxospb.BallotNumber{}
-	p.canSkipPrepare = false
-	p.rejectBySomeone = false
-	p.value = p.value[:0]
+	p.instanceID++
 	p.votes = make(map[uint64]bool)
+	p.highestOtherProposalID = 0
+	p.value = p.value[:0]
+	p.st = closing
 }
 
 func (p *proposer) newPrepare() {
@@ -102,7 +87,6 @@ func (p *proposer) setOtherProposalID(op uint64) {
 }
 
 func (p *proposer) tick() {
-	p.tickCount++
 	if p.st == preparing {
 		p.prepareTick()
 		if p.timeForPrepareTimeout() {
@@ -140,8 +124,25 @@ func (p *proposer) isSingleNodeQuorum() bool {
 	return p.quorum() == 1
 }
 
+func (p *proposer) newValue(value []byte) {
+	if len(p.value) == 0 {
+		p.value = stringutil.BytesDeepCopy(value)
+	}
+	// set timeout ddl
+	if p.canSkipPrepare && !p.rejectBySomeone {
+		plog.Infof("skip prepare, direct start accept")
+		p.accept()
+	} else {
+		p.prepare(p.rejectBySomeone)
+	}
+}
+
 func (p *proposer) prepare(needNewBallot bool) {
-	p.reset(p.instanceID)
+	p.st = preparing
+	p.preparingTick = 0
+	p.canSkipPrepare = false
+	p.rejectBySomeone = false
+	p.highestOtherPreAcceptBallot = paxospb.BallotNumber{}
 	if needNewBallot {
 		p.newPrepare()
 	}
@@ -150,11 +151,10 @@ func (p *proposer) prepare(needNewBallot bool) {
 		InstanceID: p.instanceID,
 		ProposalID: p.proposalID,
 	}
-	p.st = preparing
-	p.preparingTick = 0
+	p.votes = make(map[uint64]bool)
 	for nid := range p.remote {
 		msg.To = nid
-		p.instance.Send(msg)
+		p.instance.send(msg)
 	}
 }
 
@@ -195,6 +195,14 @@ func (p *proposer) handlePrepareResp(msg paxospb.PaxosMsg) {
 	}
 }
 
+func (p *proposer) handleExpiredPrepareReply(msg paxospb.PaxosMsg) {
+	if msg.RejectByPromiseID != 0 {
+		plog.Infof("[expired prepare reply] reject by promise id %v", msg.RejectByPromiseID)
+		p.rejectBySomeone = true
+		p.setOtherProposalID(msg.RejectByPromiseID)
+	}
+}
+
 func (p *proposer) accept() {
 	p.st = accepting
 	p.acceptingTick = 0
@@ -204,10 +212,10 @@ func (p *proposer) accept() {
 		ProposalID: p.proposalID,
 		Value:      stringutil.BytesDeepCopy(p.value),
 	}
-
+	p.votes = make(map[uint64]bool)
 	for nid := range p.remote {
 		msg.To = nid
-		p.instance.Send(msg)
+		p.instance.send(msg)
 	}
 }
 
@@ -240,5 +248,13 @@ func (p *proposer) handleAcceptResp(msg paxospb.PaxosMsg) {
 
 	} else if len(p.votes)-count == p.quorum() {
 		plog.Infof("[Not Pass] wait and restart prepare")
+	}
+}
+
+func (p *proposer) handleExpiredAcceptReply(msg paxospb.PaxosMsg) {
+	if msg.RejectByPromiseID != 0 {
+		plog.Infof("[expired accept reply reject] reject by promiseID %v", msg.RejectByPromiseID)
+		p.rejectBySomeone = true
+		p.setOtherProposalID(msg.RejectByPromiseID)
 	}
 }

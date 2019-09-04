@@ -14,11 +14,6 @@ var (
 	emptyState = paxospb.State{}
 )
 
-//IInstanceProxy ...
-type IInstanceProxy interface {
-	Send(msg paxospb.PaxosMsg)
-}
-
 const (
 	numMessageTypes uint64 = 25
 )
@@ -59,6 +54,10 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 	}
 	i.handle = defaultHandle
 	return i
+}
+
+func (i *instance) resetForNewInstance() {
+
 }
 
 //Send ...

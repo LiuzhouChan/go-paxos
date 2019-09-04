@@ -7,7 +7,8 @@ import (
 
 //learner ...
 type learner struct {
-	instance IInstanceProxy
+	instance *instance
+	acceptor *acceptor
 	nodeID   uint64
 	remote   map[uint64]bool
 
@@ -16,18 +17,20 @@ type learner struct {
 	highestSeenInstanceID           uint64
 	highestSeenInstanceIDFromNodeID uint64
 
-	tickCount          uint64
 	askForLearnTick    uint64
 	askFroLearnTimeout uint64
-	isLearned          bool
-	learnedValue       []byte
-	acceptor           *acceptor
+
+	isIMlearning bool
+	isLearned    bool
+	learnedValue []byte
 }
 
-func newLearner(acceptor *acceptor) *learner {
+func newLearner(i *instance, acceptor *acceptor) *learner {
 	l := &learner{
-		isLearned: false,
-		acceptor:  acceptor,
+		instance:     i,
+		isLearned:    false,
+		acceptor:     acceptor,
+		learnedValue: []byte{},
 	}
 	return l
 }
@@ -55,7 +58,6 @@ func (l *learner) setSeenInstanceID(instanceID, nodeID uint64) {
 }
 
 func (l *learner) tick() {
-	l.tickCount++
 	l.askForLearnTick++
 	if l.timeForAskForLearn() {
 		l.askForLearn()
@@ -67,6 +69,7 @@ func (l *learner) timeForAskForLearn() bool {
 }
 
 func (l *learner) askForLearn() {
+	plog.Infof("start ask for learn")
 	msg := paxospb.PaxosMsg{
 		InstanceID: l.instanceID,
 		MsgType:    paxospb.PaxosLearnerAskForLearn,
@@ -75,32 +78,43 @@ func (l *learner) askForLearn() {
 	for nid := range l.remote {
 		if nid != l.nodeID {
 			msg.To = nid
-			l.instance.Send(msg)
+			l.instance.send(msg)
 		}
 	}
 }
 
 func (l *learner) handleAskForLearn(msg paxospb.PaxosMsg) {
-	l.setSeenInstanceID(msg.InstanceID, msg.NodeID)
+	l.setSeenInstanceID(msg.InstanceID, msg.From)
 	if msg.InstanceID >= l.instanceID {
 		return
 	}
-
+	l.sendNowInstanceID(msg.InstanceID, msg.From)
 }
 
-func (l *learner) sendNowInstanceID(instanceID, nodeID uint64) {
+func (l *learner) sendNowInstanceID(instanceID, to uint64) {
 	resp := paxospb.PaxosMsg{
-		To:                  nodeID,
-		MsgType:             paxospb.PaxosLearnerAskForLearn,
-		InstanceID:          instanceID,
-		NowInstanceID:       l.instanceID,
-		MinChosenInstanceID: 0,
+		To:            to,
+		MsgType:       paxospb.PaxosLearnerAskForLearn,
+		InstanceID:    instanceID,
+		NowInstanceID: l.instanceID,
 	}
-	l.instance.Send(resp)
+	l.instance.send(resp)
 }
 
 func (l *learner) handleSendNowInstanceID(msg paxospb.PaxosMsg) {
-
+	// we get the instance id of others right now
+	l.setSeenInstanceID(msg.NowInstanceID, msg.From)
+	if msg.InstanceID != l.instanceID {
+		plog.Infof("lag msg, skip")
+		return
+	}
+	if msg.NowInstanceID <= l.instanceID {
+		plog.Infof("lag msg, skip")
+		return
+	}
+	if !l.isIMlearning {
+		l.comfirmAskForLearn(msg.From)
+	}
 }
 
 func (l *learner) comfirmAskForLearn(to uint64) {
@@ -109,24 +123,25 @@ func (l *learner) comfirmAskForLearn(to uint64) {
 		InstanceID: l.instanceID,
 		MsgType:    paxospb.PaxosLearnerConfirmAskForLearn,
 	}
-	l.instance.Send(msg)
-	l.isLearned = true
+	l.instance.send(msg)
+	l.isIMlearning = true
 }
 
 func (l *learner) handleComfirmAskForLearn(msg paxospb.PaxosMsg) {
-
+	// send replicate msg now
 }
 
 func (l *learner) sendLearnValue(to uint64, learnInstanceID uint64,
 	learnedBallot paxospb.BallotNumber, learnedValue []byte) {
 	msg := paxospb.PaxosMsg{
-		To:         to,
-		MsgType:    paxospb.PaxosLearnerSendLearnValue,
-		InstanceID: learnInstanceID,
-		ProposalID: learnedBallot.ProposalID,
-		Value:      stringutil.BytesDeepCopy(learnedValue),
+		To:             to,
+		MsgType:        paxospb.PaxosLearnerSendLearnValue,
+		InstanceID:     learnInstanceID,
+		ProposalID:     learnedBallot.ProposalID,
+		ProposalNodeID: learnedBallot.NodeID,
+		Value:          stringutil.BytesDeepCopy(learnedValue),
 	}
-	l.instance.Send(msg)
+	l.instance.send(msg)
 }
 
 func (l *learner) handleSendLearnValue(msg paxospb.PaxosMsg) {
@@ -138,11 +153,6 @@ func (l *learner) handleSendLearnValue(msg paxospb.PaxosMsg) {
 	if msg.InstanceID < l.instanceID {
 		plog.Infof("no need to learn")
 	} else {
-		// learn value
-		// ballot := paxospb.BallotNumber{
-		// 	ProposalID: msg.ProposalID,
-		// 	NodeID:     msg.ProposalNodeID,
-		// }
 		l.learnValueWithoutWrite(msg.Value)
 	}
 
@@ -154,7 +164,10 @@ func (l *learner) proposerSendSuccess(learnInstanceID, proposalID uint64) {
 		InstanceID: learnInstanceID,
 		ProposalID: proposalID,
 	}
-	l.instance.Send(msg)
+	for nid := range l.remote {
+		msg.To = nid
+		l.instance.send(msg)
+	}
 }
 
 func (l *learner) handleProposerSendSuccess(msg paxospb.PaxosMsg) {
