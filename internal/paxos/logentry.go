@@ -148,3 +148,7 @@ func (l *entryLog) tryCommit(instanceID uint64) bool {
 	}
 	return false
 }
+
+func (l *entryLog) append(entries []paxospb.Entry) {
+
+}

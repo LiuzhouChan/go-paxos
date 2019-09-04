@@ -33,19 +33,17 @@ message PaxosMsg{
     optional MessageType MsgType = 1 [(gogoproto.nullable) = false];
     optional uint64 To = 2 [(gogoproto.nullable) = false];
     optional uint64 From = 3 [(gogoproto.nullable) = false];
-    optional uint64 Group_id = 4 [(gogoproto.nullable) = false];
+    optional uint64 GroupID = 4 [(gogoproto.nullable) = false];
 	optional uint64 InstanceID = 5 [(gogoproto.nullable) = false];
-	optional uint64 NodeID = 6 [(gogoproto.nullable) = false];
-	optional uint64 ProposalID = 7 [(gogoproto.nullable) = false];
-	optional uint64 ProposalNodeID = 8 [(gogoproto.nullable) = false];
-	optional bytes Value = 9;
-	optional uint64 PreAcceptID = 10 [(gogoproto.nullable) = false];
-	optional uint64 PreAcceptNodeID = 11 [(gogoproto.nullable) = false];
-	optional uint64 RejectByPromiseID = 12 [(gogoproto.nullable) = false];
-	optional uint64 NowInstanceID = 13 [(gogoproto.nullable) = false];
-	optional uint64 MinChosenInstanceID = 14 [(gogoproto.nullable) = false];
-	optional uint32 Flag = 17 [(gogoproto.nullable) = false];
-	optional bytes MasterVariables = 19;
+	optional uint64 ProposalID = 6 [(gogoproto.nullable) = false];
+	optional uint64 ProposalNodeID = 7 [(gogoproto.nullable) = false];
+	optional bytes Value = 8;
+	optional uint64 PreAcceptID = 9 [(gogoproto.nullable) = false];
+	optional uint64 PreAcceptNodeID = 10 [(gogoproto.nullable) = false];
+	optional uint64 RejectByPromiseID = 11 [(gogoproto.nullable) = false];
+	optional uint64 NowInstanceID = 12 [(gogoproto.nullable) = false];
+	optional uint64 MinChosenInstanceID = 13 [(gogoproto.nullable) = false];
+	optional uint32 Flag = 14 [(gogoproto.nullable) = false];
 }
 
 message MessageBatch{
@@ -102,7 +100,6 @@ enum ChecksumType{
 	CRC32IEEE = 0;
 	HIGHWAY	=1;
 }
-
 
 message SnapshotHeader{
  	optional uint64 data_store_size     = 1 [(gogoproto.nullable) = false];

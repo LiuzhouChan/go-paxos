@@ -34,9 +34,8 @@ type instance struct {
 	proposer   *proposer
 	msgs       []paxospb.PaxosMsg
 
-	remotes   map[uint64]*remote
-	followers map[uint64]*remote
-	handle    setpFunc
+	remotes map[uint64]*remote
+	handle  setpFunc
 }
 
 //NewInstance ...
@@ -45,12 +44,11 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 		panic("logdb is nil")
 	}
 	i := &instance{
-		groupID:   c.GroupID,
-		nodeID:    c.NodeID,
-		msgs:      make([]paxospb.PaxosMsg, 0),
-		log:       newEntryLog(logdb),
-		remotes:   make(map[uint64]*remote),
-		followers: make(map[uint64]*remote),
+		groupID: c.GroupID,
+		nodeID:  c.NodeID,
+		msgs:    make([]paxospb.PaxosMsg, 0),
+		log:     newEntryLog(logdb),
+		remotes: make(map[uint64]*remote),
 	}
 	i.handle = defaultHandle
 	return i
@@ -71,16 +69,12 @@ func (i *instance) addNode(nodeID uint64) {
 		//already a member
 		return
 	}
-	//TODO: check whether it is a follower
+
 	i.setRemote(nodeID, 0, 12)
 }
 
 func (i *instance) deleteRemote(nodeID uint64) {
 	delete(i.remotes, nodeID)
-}
-
-func (i *instance) deleteFollower(nodeID uint64) {
-	delete(i.followers, nodeID)
 }
 
 func (i *instance) setRemote(nodeID uint64, match uint64, next uint64) {

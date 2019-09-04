@@ -24,6 +24,13 @@ type soft struct {
 	StepEngineCommitWorkerCount uint64
 	NodeReloadMillisecond       uint64
 
+	InMemEntrySliceSize uint64
+	// MinEntrySliceFreeSize defines the minimum length of the free in memory
+	// entry slice. A new entry slice of length InMemEntrySliceSize will be
+	// allocated once the free entry size in the current slice is less than
+	// MinEntrySliceFreeSize.
+	MinEntrySliceFreeSize uint64
+
 	// UseRangeDelete determines whether to use range delete when possible.
 	UseRangeDelete bool
 	// RDBMaxBackgroundCompactions is the MaxBackgroundCompactions parameter
@@ -59,6 +66,8 @@ func getDefaultSoftSettings() soft {
 		StepEngineCommitWorkerCount: 16,
 		RDBMaxBackgroundCompactions: 2,
 		RDBMaxBackgroundFlushes:     2,
+		InMemEntrySliceSize:         512,
+		MinEntrySliceFreeSize:       96,
 		RDBLRUCacheSize:             0,
 		BatchedEntryApply:           0,
 		NodeHostSyncPoolSize:        8,
