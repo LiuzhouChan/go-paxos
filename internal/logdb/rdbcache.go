@@ -9,7 +9,7 @@ import (
 
 type rdbcache struct {
 	nodeInfo       map[paxosio.NodeInfo]struct{}
-	ps             map[paxosio.NodeInfo]paxospb.AcceptorState
+	ps             map[paxosio.NodeInfo]paxospb.State
 	lastEntryBatch map[paxosio.NodeInfo]paxospb.EntryBatch
 	maxInstance    map[paxosio.NodeInfo]uint64
 	mu             sync.Mutex
@@ -18,7 +18,7 @@ type rdbcache struct {
 func newRDBCache() *rdbcache {
 	return &rdbcache{
 		nodeInfo:       make(map[paxosio.NodeInfo]struct{}),
-		ps:             make(map[paxosio.NodeInfo]paxospb.AcceptorState),
+		ps:             make(map[paxosio.NodeInfo]paxospb.State),
 		lastEntryBatch: make(map[paxosio.NodeInfo]paxospb.EntryBatch),
 		maxInstance:    make(map[paxosio.NodeInfo]uint64),
 	}
@@ -36,7 +36,7 @@ func (r *rdbcache) setNodeInfo(groupID uint64, nodeID uint64) bool {
 }
 
 func (r *rdbcache) setState(groupID uint64,
-	nodeID uint64, st paxospb.AcceptorState) bool {
+	nodeID uint64, st paxospb.State) bool {
 	key := paxosio.NodeInfo{GroupID: groupID, NodeID: nodeID}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -45,7 +45,7 @@ func (r *rdbcache) setState(groupID uint64,
 		r.ps[key] = st
 		return true
 	}
-	if paxospb.IsAcceptorStateEqual(v, st) {
+	if paxospb.IsStateEqual(v, st) {
 		return false
 	}
 	r.ps[key] = st

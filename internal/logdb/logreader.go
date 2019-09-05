@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	ipaxos "github.com/LiuzhouChan/go-paxos/internal/paxos"
 	"github.com/LiuzhouChan/go-paxos/paxosio"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
 )
@@ -39,7 +40,7 @@ func (lr *LogReader) NodeState() paxospb.State {
 }
 
 //Entries ...
-func (lr *LogReader) Entries(log, high uint64) ([]paxospb.Entry, error) {
+func (lr *LogReader) Entries(low, high uint64) ([]paxospb.Entry, error) {
 	lr.Lock()
 	defer lr.Unlock()
 	return lr.entriesLocked(low, high)
@@ -60,7 +61,7 @@ func (lr *LogReader) entriesLocked(low, high uint64) ([]paxospb.Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(ents) == high-low {
+	if uint64(len(ents)) == high-low {
 		return ents, nil
 	}
 	plog.Warningf("failed to get anything from logreader")

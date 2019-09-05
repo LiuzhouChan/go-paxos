@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build dragonboat_monkeytest
-
 package logdb
 
 const (
@@ -21,26 +19,26 @@ const (
 )
 
 // SetEntryBatchSize sets the entry batch size.
-func SetEntryBatchSize(sz uint64) {
-	batchSize = sz
-}
+// func SetEntryBatchSize(sz uint64) {
+// 	batchSize = sz
+// }
 
-// Disable range delete.
-func DisableRangeDelete() {
-	useRangeDelete = false
-}
+// // Disable range delete.
+// func DisableRangeDelete() {
+// 	useRangeDelete = false
+// }
 
-// Enable range delete.
-func EnableRangeDelete() {
-	useRangeDelete = true
-}
+// // Enable range delete.
+// func EnableRangeDelete() {
+// 	useRangeDelete = true
+// }
 
-// SetLogDBInstanceCount set the number of rocksdb instances to use.
-func SetLogDBInstanceCount(count uint64) {
-	numOfRocksDBInstance = count
-}
+// // SetLogDBInstanceCount set the number of rocksdb instances to use.
+// func SetLogDBInstanceCount(count uint64) {
+// 	numOfRocksDBInstance = count
+// }
 
-// SetRDBContextSize set the RDB context related sizes
-func SetRDBContextSize(valueSize uint64) {
-	RDBContextValueSize = valueSize
-}
+// // SetRDBContextSize set the RDB context related sizes
+// func SetRDBContextSize(valueSize uint64) {
+// 	RDBContextValueSize = valueSize
+// }

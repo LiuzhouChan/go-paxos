@@ -2,6 +2,7 @@ package logdb
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 
 	"github.com/LiuzhouChan/go-paxos/paxosio"
@@ -85,7 +86,7 @@ func (mw *ShardedRDB) GetBootstrapInfo(groupID uint64,
 	return mw.shards[idx].getBootstrapInfo(groupID, nodeID)
 }
 
-//	IterateEntries ...
+// IterateEntries ...
 func (mw *ShardedRDB) IterateEntries(groupID uint64, nodeID uint64, low uint64,
 	high uint64) ([]paxospb.Entry, error) {
 	idx := mw.partitioner.GetPartitionID(groupID)
@@ -97,4 +98,38 @@ func (mw *ShardedRDB) Close() {
 	for _, v := range mw.shards {
 		v.close()
 	}
+}
+
+func (mw *ShardedRDB) getParitionID(updates []paxospb.Update) uint64 {
+	pid := uint64(math.MaxUint64)
+	for _, ud := range updates {
+		id := mw.partitioner.GetPartitionID(ud.GroupID)
+		if pid == math.MaxUint64 {
+			pid = id
+		} else {
+			if pid != id {
+				plog.Panicf("multiple pid value found")
+			}
+		}
+	}
+	if pid == uint64(math.MaxUint64) {
+		plog.Panicf("invalid partition id")
+	}
+	return pid
+}
+
+//SavePaxosState ...
+func (mw *ShardedRDB) SavePaxosState(updates []paxospb.Update,
+	ctx paxosio.IContext) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	pid := mw.getParitionID(updates)
+
+	// return mw.shards[pid].
+}
+
+//ReadPaxosState ...
+func (mw *ShardedRDB) ReadPaxosState(groupID, nodeID, lastInstance uint64) (*paxosio.PaxosState, error) {
+	return nil, nil
 }

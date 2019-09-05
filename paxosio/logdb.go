@@ -32,9 +32,9 @@ type State struct {
 
 //PaxosState ...
 type PaxosState struct {
-	State paxospb.AcceptorState
-	// FirstIndex is the index of the first entry to iterate
-	FirstIndex uint64
+	State *paxospb.State
+	// FirstInstanceID is the index of the first entry to iterate
+	FirstInstanceID uint64
 	// EntryCount is the number of entries to iterate
 	EntryCount uint64
 }
