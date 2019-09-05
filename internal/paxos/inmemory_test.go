@@ -105,7 +105,7 @@ func TestInMemGetLastIndex(t *testing.T) {
 		for i := tt.first; i < tt.first+tt.length; i++ {
 			im.entries = append(im.entries, paxospb.Entry{AcceptorState: paxospb.AcceptorState{InstanceID: i}})
 		}
-		index, ok := im.getLastIndex()
+		index, ok := im.getLastInstanceID()
 		if !ok || index != tt.first+tt.length-1 {
 			t.Errorf("%d, ok %t, index %d, want %d", idx, ok, index, tt.first+tt.length-1)
 		}
@@ -129,7 +129,7 @@ func TestInMemMergeFullAppend(t *testing.T) {
 	if len(im.entries) != 5 || im.markerInstanceID != 5 {
 		t.Errorf("not fully appended")
 	}
-	if idx, ok := im.getLastIndex(); !ok || idx != 9 {
+	if idx, ok := im.getLastInstanceID(); !ok || idx != 9 {
 		t.Errorf("last index %d, want 9", idx)
 	}
 }

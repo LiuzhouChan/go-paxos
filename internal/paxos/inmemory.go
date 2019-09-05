@@ -44,7 +44,7 @@ func (im *inMemory) getEntries(low uint64, high uint64) []paxospb.Entry {
 	return im.entries[low-im.markerInstanceID : high-im.markerInstanceID]
 }
 
-func (im *inMemory) getLastIndex() (uint64, bool) {
+func (im *inMemory) getLastInstanceID() (uint64, bool) {
 	if len(im.entries) > 0 {
 		return im.entries[len(im.entries)-1].AcceptorState.InstanceID, true
 	}

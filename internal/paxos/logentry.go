@@ -31,10 +31,15 @@ type ILogDB interface {
 	SetState(ps paxospb.State)
 
 	Entries(low uint64, high uint64) ([]paxospb.Entry, error)
+
+	// Append makes the given entries known to the ILogDB instance. This is
+	// usually not how entries are persisted.
+	Append(entries []paxospb.Entry) error
 }
 
 type entryLog struct {
 	logdb     ILogDB
+	inmem     inMemory
 	committed uint64
 	applied   uint64
 }
@@ -43,6 +48,7 @@ func newEntryLog(logdb ILogDB) *entryLog {
 	firstInstanceID, lastInstanceID := logdb.GetRange()
 	l := &entryLog{
 		logdb:     logdb,
+		inmem:     newInMemory(lastInstanceID),
 		committed: lastInstanceID,
 		applied:   firstInstanceID - 1,
 	}
@@ -55,6 +61,10 @@ func (l *entryLog) firstInstanceID() uint64 {
 }
 
 func (l *entryLog) lastInstanceID() uint64 {
+	instanceID, ok := l.inmem.getLastInstanceID()
+	if ok {
+		return instanceID
+	}
 	_, last := l.logdb.GetRange()
 	return last
 }
@@ -73,15 +83,37 @@ func (l *entryLog) checkBound(low, high uint64) {
 	}
 }
 
-func (l *entryLog) getEntriesFromLogDB(low, high uint64) ([]paxospb.Entry, error) {
-	ents, err := l.logdb.Entries(low, high)
+func (l *entryLog) getEntriesFromLogDB(low, high uint64) ([]paxospb.Entry, bool, error) {
+	if low >= l.inmem.markerInstanceID {
+		return nil, true, nil
+	}
+	upperBound := min(high, l.inmem.markerInstanceID)
+
+	ents, err := l.logdb.Entries(low, upperBound)
 	if err != nil {
 		panic(err)
 	}
-	if uint64(len(ents)) > high-low {
+	if uint64(len(ents)) > upperBound-low {
 		plog.Panicf("uint64(ents) > high-low")
 	}
-	return ents, nil
+	return ents, uint64(len(ents)) == upperBound-low, nil
+}
+
+func (l *entryLog) getEntriesFromInMem(ents []paxospb.Entry, low uint64,
+	high uint64) []paxospb.Entry {
+	if high < l.inmem.markerInstanceID {
+		return ents
+	}
+	lowBound := max(low, l.inmem.markerInstanceID)
+	inmem := l.inmem.getEntries(lowBound, high)
+	if len(inmem) > 0 {
+		if len(ents) > 0 {
+			checkEntriesToAppend(ents, inmem)
+			return append(ents, inmem...)
+		}
+		return inmem
+	}
+	return ents
 }
 
 func (l *entryLog) getEntries(low, high uint64) ([]paxospb.Entry, error) {
@@ -89,7 +121,21 @@ func (l *entryLog) getEntries(low, high uint64) ([]paxospb.Entry, error) {
 	if low == high {
 		return nil, nil
 	}
-	return l.getEntriesFromLogDB(low, high)
+	ents, checkInMem, err := l.getEntriesFromLogDB(low, high)
+	if err != nil {
+		return nil, err
+	}
+	if !checkInMem {
+		return ents, nil
+	}
+	return l.getEntriesFromInMem(ents, low, high), nil
+}
+
+func (l *entryLog) entries(start uint64) ([]paxospb.Entry, error) {
+	if start > l.lastInstanceID() {
+		return nil, nil
+	}
+	return l.getEntries(start, l.lastInstanceID()+1)
 }
 
 func (l *entryLog) firstNotAppliedInstanceID() uint64 {
@@ -117,6 +163,18 @@ func (l *entryLog) getEntriesToApply() []paxospb.Entry {
 		}
 	}
 	return nil
+}
+
+func (l *entryLog) entriesToSave() []paxospb.Entry {
+	return l.inmem.entriesToSave()
+}
+
+func (l *entryLog) tryAppend(instanceID uint64, ents []paxospb.Entry) bool {
+	return false
+}
+
+func (l *entryLog) append(entries []paxospb.Entry) {
+
 }
 
 func (l *entryLog) commitTo(instanceID uint64) {
@@ -147,8 +205,4 @@ func (l *entryLog) tryCommit(instanceID uint64) bool {
 		return true
 	}
 	return false
-}
-
-func (l *entryLog) append(entries []paxospb.Entry) {
-
 }
