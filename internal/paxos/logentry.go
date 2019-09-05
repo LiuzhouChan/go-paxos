@@ -169,12 +169,15 @@ func (l *entryLog) entriesToSave() []paxospb.Entry {
 	return l.inmem.entriesToSave()
 }
 
-func (l *entryLog) tryAppend(instanceID uint64, ents []paxospb.Entry) bool {
-	return false
-}
-
 func (l *entryLog) append(entries []paxospb.Entry) {
-
+	if len(entries) == 0 {
+		return
+	}
+	if entries[0].AcceptorState.InstanceID <= l.committed {
+		plog.Panicf("commiteed entries being changed, committed %d, first instance id %d",
+			l.committed, entries[0].AcceptorState.InstanceID)
+	}
+	l.inmem.merge(entries)
 }
 
 func (l *entryLog) commitTo(instanceID uint64) {
@@ -188,11 +191,13 @@ func (l *entryLog) commitTo(instanceID uint64) {
 }
 
 func (l *entryLog) commitUpdate(cu paxospb.UpdateCommit) {
+	l.inmem.commitUpdate(cu)
 	if cu.AppliedTo > 0 {
 		if cu.AppliedTo < l.applied || cu.AppliedTo > l.committed {
 			plog.Panicf("invalid applyto %d, current applied %d, commited %d", cu.AppliedTo, l.applied, l.committed)
 		}
 		l.applied = cu.AppliedTo
+		l.inmem.appliedLogTo(cu.AppliedTo)
 	}
 }
 
