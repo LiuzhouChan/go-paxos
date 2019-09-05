@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	ipaxos "github.com/LiuzhouChan/go-paxos/internal/paxos"
+	"github.com/LiuzhouChan/go-paxos/internal/utils/logutil"
 	"github.com/LiuzhouChan/go-paxos/paxosio"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
 )
@@ -24,12 +25,18 @@ type LogReader struct {
 
 // NewLogReader creates and returns a new LogReader instance.
 func NewLogReader(groupID uint64, nodeID uint64, logdb paxosio.ILogDB) *LogReader {
-	return &LogReader{
+	l := &LogReader{
 		logdb:   logdb,
 		groupID: groupID,
 		nodeID:  nodeID,
 		length:  1,
 	}
+	return l
+}
+
+func (lr *LogReader) describe() string {
+	return fmt.Sprintf("logreader %s instance id %d length %d",
+		logutil.DescribeNode(lr.groupID, lr.nodeID), lr.markerInstanceID, lr.length)
 }
 
 //NodeState ...
@@ -63,6 +70,18 @@ func (lr *LogReader) entriesLocked(low, high uint64) ([]paxospb.Entry, error) {
 	}
 	if uint64(len(ents)) == high-low {
 		return ents, nil
+	}
+	if len(ents) > 0 {
+		if ents[0].AcceptorState.InstanceID > low {
+			return nil, ipaxos.ErrCompacted
+		}
+		expected := ents[len(ents)-1].AcceptorState.InstanceID + 1
+		if lr.lastInstanceID() <= expected {
+			plog.Errorf("%s, %v, low %d high %d, expected %d last instance id %d",
+				lr.describe(), ipaxos.ErrUnavailable, low, high, expected, lr.lastInstanceID())
+			return nil, ipaxos.ErrUnavailable
+		}
+		return nil, fmt.Errorf("gap found between [%d:%d] at %d", low, high, expected)
 	}
 	plog.Warningf("failed to get anything from logreader")
 	return nil, ipaxos.ErrUnavailable
@@ -117,4 +136,35 @@ func (lr *LogReader) SetState(s paxospb.State) {
 	lr.Lock()
 	defer lr.Unlock()
 	lr.state = s
+}
+
+// Append ...
+func (lr *LogReader) Append(entries []paxospb.Entry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	if len(entries) > 0 {
+		if entries[0].AcceptorState.InstanceID+uint64(len(entries))-1 !=
+			entries[len(entries)-1].AcceptorState.InstanceID {
+			panic("gap in entries")
+		}
+	}
+	lr.SetRange(entries[0].AcceptorState.InstanceID, uint64(len(entries)))
+	return nil
+}
+
+// Compact compacts paxos log entries up to index
+func (lr *LogReader) Compact(instanceID uint64) error {
+	lr.Lock()
+	defer lr.Unlock()
+	if instanceID < lr.markerInstanceID {
+		return ipaxos.ErrCompacted
+	}
+	if instanceID > lr.lastInstanceID() {
+		return ipaxos.ErrUnavailable
+	}
+	i := instanceID - lr.markerInstanceID
+	lr.length = lr.length - i
+	lr.markerInstanceID = instanceID
+	return nil
 }

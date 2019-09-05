@@ -125,11 +125,11 @@ func (mw *ShardedRDB) SavePaxosState(updates []paxospb.Update,
 		return nil
 	}
 	pid := mw.getParitionID(updates)
-
-	// return mw.shards[pid].
+	return mw.shards[pid].savePaxosState(updates, ctx)
 }
 
 //ReadPaxosState ...
 func (mw *ShardedRDB) ReadPaxosState(groupID, nodeID, lastInstance uint64) (*paxosio.PaxosState, error) {
-	return nil, nil
+	idx := mw.partitioner.GetPartitionID(groupID)
+	return mw.shards[idx].readPaxosState(groupID, nodeID, lastInstance)
 }
