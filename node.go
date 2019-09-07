@@ -197,8 +197,24 @@ func (rc *node) publishEntries(ents []paxospb.Entry) bool {
 
 func (rc *node) replayLog(groupID uint64, nodeID uint64) bool {
 	plog.Infof("%s is replaying logs", rc.describe())
-	//TODO:
-	return true
+	ps, err := rc.logdb.ReadPaxosState(groupID, nodeID, 0)
+	if err == paxosio.ErrNoSavedLog {
+		return true
+	}
+	if err != nil {
+		panic(err)
+	}
+	if ps.State != nil {
+		plog.Infof("%s logdb ents zs %d commit %d",
+			rc.describe(), ps.EntryCount, ps.State.Commit)
+		rc.logreader.SetState(*ps.State)
+	}
+	rc.logreader.SetRange(ps.FirstInstanceID, ps.EntryCount)
+	newNode := true
+	if ps.EntryCount > 0 || ps.State != nil {
+		newNode = false
+	}
+	return newNode
 }
 
 func (rc *node) handleCommit(batch []rsm.Commit) (rsm.Commit, bool) {
@@ -207,7 +223,7 @@ func (rc *node) handleCommit(batch []rsm.Commit) (rsm.Commit, bool) {
 
 func (rc *node) sendMessages(msgs []paxospb.PaxosMsg) {
 	for _, msg := range msgs {
-		msg.GroupId = rc.groupID
+		msg.GroupID = rc.groupID
 		rc.sendPaxosMessage(msg)
 	}
 }
@@ -217,7 +233,7 @@ func (rc *node) getUpdate() (paxospb.Update, bool) {
 	if rc.node.HasUpdate(moreEntriesToApply) {
 		ud := rc.node.GetUpdate(moreEntriesToApply)
 		for iid := range ud.Messages {
-			ud.Messages[iid].GroupId = rc.groupID
+			ud.Messages[iid].GroupID = rc.groupID
 		}
 		ud.LastApplied = rc.lastApplied
 		return ud, true
@@ -317,8 +333,8 @@ func (rc *node) handleReceiveMessages() bool {
 			continue
 		}
 		if done := rc.handleMessage(m); !done {
-			if m.GroupId != rc.groupID {
-				plog.Panicf("received messages for group %d on %d", m.GroupId, rc.groupID)
+			if m.GroupID != rc.groupID {
+				plog.Panicf("received messages for group %d on %d", m.GroupID, rc.groupID)
 			}
 			rc.node.Handle(m)
 		}

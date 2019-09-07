@@ -54,6 +54,7 @@ message MessageBatch{
 
 message State {
 	optional uint64 commit = 1 [(gogoproto.nullable) = false];
+	optional AcceptorState AcceptorState = 2 [(gogoproto.nullable) = false];
 }
 
 enum EntryType{

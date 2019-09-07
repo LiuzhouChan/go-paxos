@@ -9,8 +9,6 @@ import (
 type learner struct {
 	instance *instance
 	acceptor *acceptor
-	nodeID   uint64
-	remote   map[uint64]bool
 
 	instanceID uint64
 
@@ -75,8 +73,8 @@ func (l *learner) askForLearn() {
 		MsgType:    paxospb.PaxosLearnerAskForLearn,
 	}
 	// broadcast askfor learn msg to peer
-	for nid := range l.remote {
-		if nid != l.nodeID {
+	for nid := range l.instance.remotes {
+		if nid != l.instance.nodeID {
 			msg.To = nid
 			l.instance.send(msg)
 		}
@@ -164,7 +162,7 @@ func (l *learner) proposerSendSuccess(learnInstanceID, proposalID uint64) {
 		InstanceID: learnInstanceID,
 		ProposalID: proposalID,
 	}
-	for nid := range l.remote {
+	for nid := range l.instance.remotes {
 		msg.To = nid
 		l.instance.send(msg)
 	}

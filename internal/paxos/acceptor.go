@@ -9,7 +9,6 @@ import (
 type acceptor struct {
 	instance   *instance
 	instanceID uint64
-	nodeID     uint64
 	state      paxospb.AcceptorState
 }
 

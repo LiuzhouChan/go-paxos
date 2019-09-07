@@ -28,7 +28,6 @@ func (st state) String() string {
 type proposer struct {
 	instance                    *instance
 	nodeID                      uint64
-	remote                      map[uint64]bool
 	proposalID                  uint64
 	instanceID                  uint64
 	highestOtherProposalID      uint64
@@ -42,6 +41,7 @@ type proposer struct {
 	prepareTimeout              uint64
 	acceptTimeout               uint64
 	st                          state
+	learner                     *learner
 }
 
 func newProposer(i *instance) *proposer {
@@ -117,7 +117,7 @@ func (p *proposer) timeForAcceptTimeout() bool {
 }
 
 func (p *proposer) quorum() int {
-	return len(p.remote)/2 + 1
+	return len(p.instance.remotes)/2 + 1
 }
 
 func (p *proposer) isSingleNodeQuorum() bool {
@@ -152,7 +152,7 @@ func (p *proposer) prepare(needNewBallot bool) {
 		ProposalID: p.proposalID,
 	}
 	p.votes = make(map[uint64]bool)
-	for nid := range p.remote {
+	for nid := range p.instance.remotes {
 		msg.To = nid
 		p.instance.send(msg)
 	}
@@ -213,7 +213,7 @@ func (p *proposer) accept() {
 		Value:      stringutil.BytesDeepCopy(p.value),
 	}
 	p.votes = make(map[uint64]bool)
-	for nid := range p.remote {
+	for nid := range p.instance.remotes {
 		msg.To = nid
 		p.instance.send(msg)
 	}

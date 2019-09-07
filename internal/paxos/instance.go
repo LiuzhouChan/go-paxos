@@ -23,10 +23,9 @@ type setpFunc func(*instance, paxospb.PaxosMsg)
 
 //Instance ...
 type instance struct {
-	nodeID     uint64
-	applied    uint64
 	instanceID uint64
 	groupID    uint64
+	nodeID     uint64
 	log        *entryLog
 	tickCount  uint64
 	acceptor   *acceptor
@@ -34,6 +33,7 @@ type instance struct {
 	proposer   *proposer
 	msgs       []paxospb.PaxosMsg
 
+	applied uint64
 	remotes map[uint64]*remote
 	handle  setpFunc
 }
@@ -50,6 +50,18 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 		log:     newEntryLog(logdb),
 		remotes: make(map[uint64]*remote),
 	}
+	st := logdb.NodeState()
+	if !paxospb.IsEmptyState(st) {
+		i.loadState(st)
+	}
+
+	acceptor := newAcceptor(i)
+	proposer := newProposer(i)
+	learner := newLearner(i, acceptor)
+
+	i.acceptor = acceptor
+	i.proposer = proposer
+	i.learner = learner
 	i.handle = defaultHandle
 	return i
 }
@@ -87,7 +99,8 @@ func (i *instance) setRemote(nodeID uint64, match uint64, next uint64) {
 
 func (i *instance) paxosState() paxospb.State {
 	return paxospb.State{
-		Commit: i.log.committed,
+		Commit:        i.log.committed,
+		AcceptorState: i.acceptor.state,
 	}
 }
 
@@ -96,6 +109,7 @@ func (i *instance) loadState(st paxospb.State) {
 		plog.Panicf("got out of range state, st.commit %d, range[%d, %d]", st.Commit, i.log.committed, i.log.lastInstanceID())
 	}
 	i.log.committed = st.Commit
+	i.instanceID = st.AcceptorState.InstanceID
 }
 
 func (i *instance) Handle(msg paxospb.PaxosMsg) {

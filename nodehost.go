@@ -357,7 +357,7 @@ func (nh *NodeHost) sendNoOPMessage(groupID, NodeID uint64) {
 		MsgType: paxospb.NoOP,
 		To:      NodeID,
 		From:    NodeID,
-		GroupId: groupID,
+		GroupID: groupID,
 	}
 	batch.Requests = append(batch.Requests, msg)
 	nh.msgHandler.HandleMessageBatch(batch)
@@ -552,13 +552,13 @@ func newNodeHostMessageHandler(nh *NodeHost) *messageHandler {
 func (h *messageHandler) HandleMessageBatch(msg paxospb.MessageBatch) {
 	nh := h.nh
 	for _, req := range msg.Requests {
-		_, q, ok := nh.getGroupAndQueueNotLocked(req.GroupId)
+		_, q, ok := nh.getGroupAndQueueNotLocked(req.GroupID)
 		if ok {
 			// here we only deal with the regular message
 			if added, stopped := q.Add(req); !added || stopped {
 				plog.Warningf("dropped an incomming message")
 			}
 		}
-		nh.execEngine.setNodeReady(req.GroupId)
+		nh.execEngine.setNodeReady(req.GroupID)
 	}
 }
