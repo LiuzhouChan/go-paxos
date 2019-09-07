@@ -60,8 +60,12 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 	learner := newLearner(i, acceptor)
 
 	acceptor.instanceID = i.instanceID
-	proposer.instanceID = i.instanceID
+	acceptor.state = st.AcceptorState
+
 	learner.instanceID = i.instanceID
+
+	proposer.instanceID = i.instanceID
+	proposer.proposalID = st.AcceptorState.PromiseBallot.ProposalID + 1
 
 	i.acceptor = acceptor
 	i.proposer = proposer
@@ -71,7 +75,9 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 }
 
 func (i *instance) resetForNewInstance() {
-
+	i.acceptor.newInstance()
+	i.learner.newInstance()
+	i.proposer.newInstance()
 }
 
 //Send ...
@@ -139,6 +145,11 @@ func (i *instance) tick() {
 }
 
 func defaultHandle(i *instance, msg paxospb.PaxosMsg) {
+	if msg.MsgType == paxospb.LocalTick {
+		i.tick()
+	} else if msg.MsgType == paxospb.Propose {
+		i.handlePropose(msg)
+	}
 	if msg.MsgType == paxospb.PaxosPrepareReply ||
 		msg.MsgType == paxospb.PaxosAcceptReply ||
 		msg.MsgType == paxospb.PaxosProposalSendNewValue {
@@ -155,6 +166,14 @@ func defaultHandle(i *instance, msg paxospb.PaxosMsg) {
 	} else {
 		plog.Errorf("Invalid msg type %v", msg.MsgType)
 	}
+}
+
+func (i *instance) handlePropose(msg paxospb.PaxosMsg) {
+	if !i.learner.isIMLast() {
+		plog.Warningf("instance handle propose, learner is not the last")
+		return
+	}
+	i.proposer.newValue(msg.Key, msg.Value)
 }
 
 func (i *instance) handleMessageForProposer(msg paxospb.PaxosMsg) {
@@ -223,6 +242,7 @@ func (i *instance) handleMessageForLearner(msg paxospb.PaxosMsg) {
 	if i.learner.isLearned {
 		ent := paxospb.Entry{
 			Type:          paxospb.ApplicationEntry,
+			Key:           msg.Key,
 			AcceptorState: i.acceptor.state,
 		}
 		i.log.append([]paxospb.Entry{ent})

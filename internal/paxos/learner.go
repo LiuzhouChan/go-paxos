@@ -87,7 +87,20 @@ func (l *learner) handleAskForLearn(msg paxospb.PaxosMsg) {
 	if msg.InstanceID >= l.instanceID {
 		return
 	}
-	l.sendNowInstanceID(msg.InstanceID, msg.From)
+	// l.sendNowInstanceID(msg.InstanceID, msg.From)
+	if msg.InstanceID < l.instance.log.firstInstanceID() {
+		plog.Panicf("the instance id is less than the first instance id: %d, %d",
+			msg.InstanceID, l.instance.log.firstInstanceID())
+	}
+	ents, err := l.instance.log.getEntries(msg.InstanceID, l.instance.log.committed+1)
+	if err != nil {
+		plog.Errorf("%v", err)
+		return
+	}
+	for _, ent := range ents {
+		l.sendLearnValue(msg.From, ent.AcceptorState.InstanceID,
+			ent.AcceptorState.AcceptedBallot, ent.Key, ent.AcceptorState.AccetpedValue)
+	}
 }
 
 func (l *learner) sendNowInstanceID(instanceID, to uint64) {
