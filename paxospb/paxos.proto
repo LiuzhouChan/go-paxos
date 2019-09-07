@@ -37,6 +37,7 @@ message PaxosMsg{
 	optional uint64 InstanceID = 5 [(gogoproto.nullable) = false];
 	optional uint64 ProposalID = 6 [(gogoproto.nullable) = false];
 	optional uint64 ProposalNodeID = 7 [(gogoproto.nullable) = false];
+	optional uint64 Key = 15;
 	optional bytes Value = 8;
 	optional uint64 PreAcceptID = 9 [(gogoproto.nullable) = false];
 	optional uint64 PreAcceptNodeID = 10 [(gogoproto.nullable) = false];

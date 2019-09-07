@@ -20,6 +20,7 @@ type learner struct {
 
 	isIMlearning bool
 	isLearned    bool
+	key          uint64
 	learnedValue []byte
 }
 
@@ -33,7 +34,7 @@ func newLearner(i *instance, acceptor *acceptor) *learner {
 	return l
 }
 
-func (l *learner) learnValueWithoutWrite(value []byte) {
+func (l *learner) learnValueWithoutWrite(key uint64, value []byte) {
 	l.learnedValue = stringutil.BytesDeepCopy(value)
 	l.isLearned = true
 }
@@ -130,13 +131,14 @@ func (l *learner) handleComfirmAskForLearn(msg paxospb.PaxosMsg) {
 }
 
 func (l *learner) sendLearnValue(to uint64, learnInstanceID uint64,
-	learnedBallot paxospb.BallotNumber, learnedValue []byte) {
+	learnedBallot paxospb.BallotNumber, key uint64, learnedValue []byte) {
 	msg := paxospb.PaxosMsg{
 		To:             to,
 		MsgType:        paxospb.PaxosLearnerSendLearnValue,
 		InstanceID:     learnInstanceID,
 		ProposalID:     learnedBallot.ProposalID,
 		ProposalNodeID: learnedBallot.NodeID,
+		Key:            key,
 		Value:          stringutil.BytesDeepCopy(learnedValue),
 	}
 	l.instance.send(msg)
@@ -151,7 +153,7 @@ func (l *learner) handleSendLearnValue(msg paxospb.PaxosMsg) {
 	if msg.InstanceID < l.instanceID {
 		plog.Infof("no need to learn")
 	} else {
-		l.learnValueWithoutWrite(msg.Value)
+		l.learnValueWithoutWrite(msg.Key, msg.Value)
 	}
 
 }
@@ -186,6 +188,6 @@ func (l *learner) handleProposerSendSuccess(msg paxospb.PaxosMsg) {
 		plog.Infof("proposal ballot not same to accepted ballot")
 		return
 	}
-	l.learnValueWithoutWrite(msg.Value)
+	l.learnValueWithoutWrite(msg.Key, msg.Value)
 	plog.Infof("learn value ok")
 }

@@ -59,6 +59,10 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 	proposer := newProposer(i)
 	learner := newLearner(i, acceptor)
 
+	acceptor.instanceID = i.instanceID
+	proposer.instanceID = i.instanceID
+	learner.instanceID = i.instanceID
+
 	i.acceptor = acceptor
 	i.proposer = proposer
 	i.learner = learner
@@ -154,13 +158,75 @@ func defaultHandle(i *instance, msg paxospb.PaxosMsg) {
 }
 
 func (i *instance) handleMessageForProposer(msg paxospb.PaxosMsg) {
-
+	if msg.InstanceID != i.proposer.instanceID {
+		//Expired reply msg on last instance.
+		//If the response of a node is always slower than the majority node,
+		//then the message of the node is always ignored even if it is a reject reply.
+		//In this case, if we do not deal with these reject reply, the node that
+		//gave reject reply will always give reject reply.
+		//This causes the node to remain in catch-up state.
+		//
+		//To avoid this problem, we need to deal with the expired reply.
+		if msg.InstanceID+1 == i.proposer.instanceID {
+			if msg.MsgType == paxospb.PaxosPrepareReply {
+				i.proposer.handleExpiredPrepareReply(msg)
+			} else if msg.MsgType == paxospb.PaxosAcceptReply {
+				i.proposer.handleExpiredAcceptReply(msg)
+			}
+		}
+		return
+	}
+	if msg.MsgType == paxospb.PaxosPrepareReply {
+		i.proposer.handlePrepareReply(msg)
+	} else if msg.MsgType == paxospb.PaxosAcceptReply {
+		i.proposer.handleAcceptReply(msg)
+	}
 }
 
 func (i *instance) handleMessageForAcceptor(msg paxospb.PaxosMsg) {
-
+	if msg.InstanceID == i.acceptor.instanceID+1 {
+		// skip success message
+		m := msg
+		msg.InstanceID = i.acceptor.instanceID
+		m.MsgType = paxospb.PaxosLearnerProposerSendSuccess
+		i.handleMessageForLearner(m)
+		return
+	}
+	if msg.InstanceID == i.acceptor.instanceID {
+		if msg.MsgType == paxospb.PaxosPrepare {
+			i.acceptor.handlePrepare(msg)
+			return
+		}
+		if msg.MsgType == paxospb.PaxosAccept {
+			i.acceptor.handleAccept(msg)
+		}
+	}
 }
 
 func (i *instance) handleMessageForLearner(msg paxospb.PaxosMsg) {
+	switch msg.MsgType {
+	case paxospb.PaxosLearnerAskForLearn:
+		i.learner.handleAskForLearn(msg)
+	case paxospb.PaxosLearnerSendLearnValue:
+		i.learner.handleSendLearnValue(msg)
+	case paxospb.PaxosLearnerProposerSendSuccess:
+		i.learner.handleProposerSendSuccess(msg)
+	case paxospb.PaxosLearnerSendNowInstanceID:
+		i.learner.handleSendNowInstanceID(msg)
+	case paxospb.PaxosLearnerConfirmAskForLearn:
+		i.learner.handleComfirmAskForLearn(msg)
+	default:
+		plog.Panicf("unknow msg type for learner")
+	}
 
+	// if we learned, commit it
+	if i.learner.isLearned {
+		ent := paxospb.Entry{
+			Type:          paxospb.ApplicationEntry,
+			AcceptorState: i.acceptor.state,
+		}
+		i.log.append([]paxospb.Entry{ent})
+		i.log.commitTo(i.instanceID)
+		i.resetForNewInstance()
+	}
 }

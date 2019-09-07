@@ -31,6 +31,7 @@ type proposer struct {
 	proposalID                  uint64
 	instanceID                  uint64
 	highestOtherProposalID      uint64
+	key                         uint64
 	value                       []byte
 	highestOtherPreAcceptBallot paxospb.BallotNumber
 	canSkipPrepare              bool
@@ -69,7 +70,7 @@ func (p *proposer) newPrepare() {
 	p.proposalID = maxProposalID + 1
 }
 
-func (p *proposer) addPreAcceptValue(ob paxospb.BallotNumber,
+func (p *proposer) addPreAcceptValue(ob paxospb.BallotNumber, key uint64,
 	ov []byte) {
 	if ob.IsNil() {
 		return
@@ -77,6 +78,7 @@ func (p *proposer) addPreAcceptValue(ob paxospb.BallotNumber,
 	if !p.highestOtherPreAcceptBallot.IsNotLessThan(ob) {
 		p.highestOtherPreAcceptBallot = ob
 		p.value = stringutil.BytesDeepCopy(ov)
+		p.key = key
 	}
 }
 
@@ -124,8 +126,9 @@ func (p *proposer) isSingleNodeQuorum() bool {
 	return p.quorum() == 1
 }
 
-func (p *proposer) newValue(value []byte) {
+func (p *proposer) newValue(key uint64, value []byte) {
 	if len(p.value) == 0 {
+		p.key = key
 		p.value = stringutil.BytesDeepCopy(value)
 	}
 	// set timeout ddl
@@ -158,7 +161,7 @@ func (p *proposer) prepare(needNewBallot bool) {
 	}
 }
 
-func (p *proposer) handlePrepareResp(msg paxospb.PaxosMsg) {
+func (p *proposer) handlePrepareReply(msg paxospb.PaxosMsg) {
 	if p.st != preparing {
 		return
 	}
@@ -170,7 +173,7 @@ func (p *proposer) handlePrepareResp(msg paxospb.PaxosMsg) {
 			ProposalID: msg.PreAcceptID,
 			NodeID:     msg.PreAcceptNodeID,
 		}
-		p.addPreAcceptValue(b, msg.Value)
+		p.addPreAcceptValue(b, msg.Key, msg.Value)
 	} else {
 		p.rejectBySomeone = true
 		p.setOtherProposalID(msg.RejectByPromiseID)
@@ -211,6 +214,7 @@ func (p *proposer) accept() {
 		InstanceID: p.instanceID,
 		ProposalID: p.proposalID,
 		Value:      stringutil.BytesDeepCopy(p.value),
+		Key:        p.key,
 	}
 	p.votes = make(map[uint64]bool)
 	for nid := range p.instance.remotes {
@@ -219,7 +223,7 @@ func (p *proposer) accept() {
 	}
 }
 
-func (p *proposer) handleAcceptResp(msg paxospb.PaxosMsg) {
+func (p *proposer) handleAcceptReply(msg paxospb.PaxosMsg) {
 	if p.st != accepting {
 		return
 	}

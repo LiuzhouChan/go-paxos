@@ -42,10 +42,11 @@ func (p *Peer) Tick() {
 }
 
 // Propose ... where we need to a new instance
-func (p *Peer) Propose(value []byte) {
+func (p *Peer) Propose(key uint64, value []byte) {
 	p.i.Handle(paxospb.PaxosMsg{
 		MsgType: paxospb.Propose,
 		From:    p.i.nodeID,
+		Key:     key,
 		Value:   stringutil.BytesDeepCopy(value),
 	})
 }

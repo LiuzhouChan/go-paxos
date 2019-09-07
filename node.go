@@ -303,7 +303,7 @@ func (rc *node) handleProposals() bool {
 	if !ok {
 		return false
 	}
-	rc.node.Propose(ent.AcceptorState.AccetpedValue)
+	rc.node.Propose(ent.Key, ent.AcceptorState.AccetpedValue)
 	return true
 }
 

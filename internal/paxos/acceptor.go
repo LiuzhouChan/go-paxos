@@ -9,6 +9,7 @@ import (
 type acceptor struct {
 	instance   *instance
 	instanceID uint64
+	acceptKey  uint64
 	state      paxospb.AcceptorState
 }
 
@@ -41,6 +42,7 @@ func (a *acceptor) handlePrepare(msg paxospb.PaxosMsg) {
 		resp.PreAcceptNodeID = a.state.AcceptedBallot.NodeID
 		if a.state.AcceptedBallot.ProposalID > 0 {
 			resp.Value = stringutil.BytesDeepCopy(a.state.AccetpedValue)
+			resp.Key = a.acceptKey
 		}
 		a.state.PromiseBallot = ballot
 	} else {
@@ -67,6 +69,7 @@ func (a *acceptor) handleAccept(msg paxospb.PaxosMsg) {
 		a.state.PromiseBallot = ballot
 		a.state.AcceptedBallot = ballot
 		a.state.AccetpedValue = stringutil.BytesDeepCopy(msg.Value)
+		a.acceptKey = msg.Key
 	} else {
 		resp.RejectByPromiseID = a.state.PromiseBallot.ProposalID
 	}
