@@ -35,6 +35,7 @@ type ILogDB interface {
 	// Append makes the given entries known to the ILogDB instance. This is
 	// usually not how entries are persisted.
 	Append(entries []paxospb.Entry) error
+	Compact(instanceID uint64) error
 }
 
 type entryLog struct {
