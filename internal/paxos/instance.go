@@ -21,7 +21,19 @@ const (
 type handlerFunc func(paxospb.PaxosMsg)
 type setpFunc func(*instance, paxospb.PaxosMsg)
 
-//Instance ...
+//IInstance ...
+type IInstance interface {
+	send(paxospb.PaxosMsg)
+}
+
+type mockInstance struct {
+	msgs []paxospb.PaxosMsg
+}
+
+func (mi *mockInstance) send(msg paxospb.PaxosMsg) {
+	mi.msgs = append(mi.msgs, msg)
+}
+
 type instance struct {
 	instanceID uint64
 	groupID    uint64

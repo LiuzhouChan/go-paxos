@@ -7,13 +7,13 @@ import (
 
 //acceptor ...
 type acceptor struct {
-	instance   *instance
+	instance   IInstance
 	instanceID uint64
 	acceptKey  uint64
 	state      paxospb.AcceptorState
 }
 
-func newAcceptor(i *instance) *acceptor {
+func newAcceptor(i IInstance) *acceptor {
 	return &acceptor{
 		instance: i,
 	}
@@ -21,7 +21,9 @@ func newAcceptor(i *instance) *acceptor {
 
 func (a *acceptor) newInstance() {
 	a.instanceID++
-	a.state = paxospb.AcceptorState{}
+	a.acceptKey = 0
+	a.state.AccetpedValue = a.state.AccetpedValue[:0]
+	a.state.AcceptedBallot = paxospb.BallotNumber{}
 }
 
 func (a *acceptor) handlePrepare(msg paxospb.PaxosMsg) {
