@@ -166,7 +166,7 @@ func (t *Transport) handleRequest(req paxospb.MessageBatch) {
 	if len(addr) > 0 {
 		for _, r := range req.Requests {
 			if r.From != 0 {
-				t.resolver.AddRemoteAddress(r.GroupId, r.From, addr)
+				t.resolver.AddRemoteAddress(r.GroupID, r.From, addr)
 			}
 		}
 	}
@@ -180,7 +180,7 @@ func (t *Transport) handlerRemoved() bool {
 // ASyncSend sends paxos msg using RPC
 func (t *Transport) ASyncSend(req paxospb.PaxosMsg) bool {
 	toNodeID := req.To
-	groupID := req.GroupId
+	groupID := req.GroupID
 	from := req.From
 	addr, key, err := t.resolver.Resolve(groupID, toNodeID)
 	if err != nil {

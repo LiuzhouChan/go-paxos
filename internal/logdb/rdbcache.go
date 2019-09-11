@@ -8,19 +8,19 @@ import (
 )
 
 type rdbcache struct {
-	nodeInfo       map[paxosio.NodeInfo]struct{}
-	ps             map[paxosio.NodeInfo]paxospb.State
-	lastEntryBatch map[paxosio.NodeInfo]paxospb.EntryBatch
-	maxInstance    map[paxosio.NodeInfo]uint64
-	mu             sync.Mutex
+	nodeInfo    map[paxosio.NodeInfo]struct{}
+	ps          map[paxosio.NodeInfo]paxospb.State
+	maxInstance map[paxosio.NodeInfo]uint64
+	mu          sync.Mutex
+	// lastEntryBatch map[paxosio.NodeInfo]paxospb.EntryBatch
 }
 
 func newRDBCache() *rdbcache {
 	return &rdbcache{
-		nodeInfo:       make(map[paxosio.NodeInfo]struct{}),
-		ps:             make(map[paxosio.NodeInfo]paxospb.State),
-		lastEntryBatch: make(map[paxosio.NodeInfo]paxospb.EntryBatch),
-		maxInstance:    make(map[paxosio.NodeInfo]uint64),
+		nodeInfo:    make(map[paxosio.NodeInfo]struct{}),
+		ps:          make(map[paxosio.NodeInfo]paxospb.State),
+		maxInstance: make(map[paxosio.NodeInfo]uint64),
+		// lastEntryBatch: make(map[paxosio.NodeInfo]paxospb.EntryBatch),
 	}
 }
 
@@ -72,31 +72,31 @@ func (r *rdbcache) getMaxInstance(groupID uint64,
 	return v, true
 }
 
-func (r *rdbcache) setLastEntryBatch(groupID uint64,
-	nodeID uint64, eb paxospb.EntryBatch) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	key := paxosio.NodeInfo{GroupID: groupID, NodeID: nodeID}
-	oeb, ok := r.lastEntryBatch[key]
-	if !ok {
-		oeb = paxospb.EntryBatch{Entries: make([]paxospb.Entry, 0, len(eb.Entries))}
-	} else {
-		oeb.Entries = oeb.Entries[:0]
-	}
-	oeb.Entries = append(oeb.Entries, eb.Entries...)
-	r.lastEntryBatch[key] = oeb
-}
+// func (r *rdbcache) setLastEntryBatch(groupID uint64,
+// 	nodeID uint64, eb paxospb.EntryBatch) {
+// 	r.mu.Lock()
+// 	defer r.mu.Unlock()
+// 	key := paxosio.NodeInfo{GroupID: groupID, NodeID: nodeID}
+// 	oeb, ok := r.lastEntryBatch[key]
+// 	if !ok {
+// 		oeb = paxospb.EntryBatch{Entries: make([]paxospb.Entry, 0, len(eb.Entries))}
+// 	} else {
+// 		oeb.Entries = oeb.Entries[:0]
+// 	}
+// 	oeb.Entries = append(oeb.Entries, eb.Entries...)
+// 	r.lastEntryBatch[key] = oeb
+// }
 
-func (r *rdbcache) getLastEntryBatch(groupID uint64,
-	nodeID uint64, lb paxospb.EntryBatch) (paxospb.EntryBatch, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	key := paxosio.NodeInfo{GroupID: groupID, NodeID: nodeID}
-	v, ok := r.lastEntryBatch[key]
-	if !ok {
-		return v, false
-	}
-	lb.Entries = lb.Entries[:0]
-	lb.Entries = append(lb.Entries, v.Entries...)
-	return lb, true
-}
+// func (r *rdbcache) getLastEntryBatch(groupID uint64,
+// 	nodeID uint64, lb paxospb.EntryBatch) (paxospb.EntryBatch, bool) {
+// 	r.mu.Lock()
+// 	defer r.mu.Unlock()
+// 	key := paxosio.NodeInfo{GroupID: groupID, NodeID: nodeID}
+// 	v, ok := r.lastEntryBatch[key]
+// 	if !ok {
+// 		return v, false
+// 	}
+// 	lb.Entries = lb.Entries[:0]
+// 	lb.Entries = append(lb.Entries, v.Entries...)
+// 	return lb, true
+// }
