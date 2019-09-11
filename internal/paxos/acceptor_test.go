@@ -8,10 +8,8 @@ import (
 )
 
 func getTestAcceptor() *acceptor {
-	mi := &mockInstance{
-		msgs: make([]paxospb.PaxosMsg, 0),
-	}
-	return newAcceptor(mi)
+	i := getTestInstance()
+	return newAcceptor(i)
 }
 
 func TestFirstPrepare(t *testing.T) {
@@ -25,9 +23,9 @@ func TestFirstPrepare(t *testing.T) {
 		Value:          []byte("test1"),
 	}
 	a.handlePrepare(msg)
-	mi := a.instance.(*mockInstance)
-	if len(mi.msgs) != 1 {
-		t.Errorf("the msgs length is %d, want 1", len(mi.msgs))
+	msgs := a.instance.readMsgs()
+	if len(msgs) != 1 {
+		t.Errorf("the msgs length is %d, want 1", len(msgs))
 	}
 	ballot := paxospb.BallotNumber{
 		ProposalID: msg.ProposalID,
@@ -39,7 +37,7 @@ func TestFirstPrepare(t *testing.T) {
 	if len(a.state.AccetpedValue) != 0 {
 		t.Errorf("the accepted value is %v, want %v", a.state.AccetpedValue, msg.Value)
 	}
-	msgReply := mi.msgs[0]
+	msgReply := msgs[0]
 	if msgReply.PreAcceptID != 0 || msgReply.PreAcceptNodeID != 0 {
 		t.Errorf("msg reply preaccept should be nil")
 	}
@@ -60,9 +58,9 @@ func TestSecondPrepareWithHigh(t *testing.T) {
 	msg2.ProposalID = 3
 	msg2.Value = []byte("test2")
 	a.handlePrepare(msg2)
-	mi := a.instance.(*mockInstance)
-	if len(mi.msgs) != 2 {
-		t.Errorf("the msgs length is %d, want 2", len(mi.msgs))
+	msgs := a.instance.readMsgs()
+	if len(msgs) != 2 {
+		t.Errorf("the msgs length is %d, want 2", len(msgs))
 	}
 	ballot := paxospb.BallotNumber{
 		ProposalID: msg2.ProposalID,
@@ -74,7 +72,7 @@ func TestSecondPrepareWithHigh(t *testing.T) {
 	if len(a.state.AccetpedValue) != 0 {
 		t.Errorf("the accepted value is %v, want %v", a.state.AccetpedValue, msg.Value)
 	}
-	msgReply := mi.msgs[1]
+	msgReply := msgs[1]
 	if msgReply.PreAcceptID != 0 || msgReply.PreAcceptNodeID != 0 {
 		t.Errorf("msg reply preaccept should be nil")
 	}
@@ -96,9 +94,9 @@ func TestSecondPrepareWithLow(t *testing.T) {
 	msg2.Value = []byte("test2")
 	a.handlePrepare(msg2)
 
-	mi := a.instance.(*mockInstance)
-	if len(mi.msgs) != 2 {
-		t.Errorf("the msgs length is %d, want 1", len(mi.msgs))
+	msgs := a.instance.readMsgs()
+	if len(msgs) != 2 {
+		t.Errorf("the msgs length is %d, want 1", len(msgs))
 	}
 	ballot := paxospb.BallotNumber{
 		ProposalID: msg.ProposalID,
@@ -110,7 +108,7 @@ func TestSecondPrepareWithLow(t *testing.T) {
 	if len(a.state.AccetpedValue) != 0 {
 		t.Errorf("the accepted value is %v, want %v", a.state.AccetpedValue, msg.Value)
 	}
-	msgReply := mi.msgs[1]
+	msgReply := msgs[1]
 	if msgReply.PreAcceptID != 0 || msgReply.PreAcceptNodeID != 0 {
 		t.Errorf("msg reply preaccept should be nil")
 	}
@@ -139,9 +137,9 @@ func TestSecondLowPrepareAfterAccepted(t *testing.T) {
 
 	a.handlePrepare(msg3)
 
-	mi := a.instance.(*mockInstance)
-	if len(mi.msgs) != 3 {
-		t.Errorf("the msgs length is %d, want 1", len(mi.msgs))
+	msgs := a.instance.readMsgs()
+	if len(msgs) != 3 {
+		t.Errorf("the msgs length is %d, want 1", len(msgs))
 	}
 	ballot := paxospb.BallotNumber{
 		ProposalID: msg2.ProposalID,
@@ -156,7 +154,7 @@ func TestSecondLowPrepareAfterAccepted(t *testing.T) {
 	if !bytes.Equal(a.state.AccetpedValue, msg2.Value) {
 		t.Errorf("the acceptor value is %v, want %v", a.state.AccetpedValue, msg2.Value)
 	}
-	msgReply := mi.msgs[2]
+	msgReply := msgs[2]
 	if msgReply.RejectByPromiseID != ballot.ProposalID {
 		t.Errorf("the msgReply reject propomise id is %d, want %d", msgReply.RejectByPromiseID, msg.ProposalID)
 	}
@@ -182,9 +180,9 @@ func TestSecondHighPrepareAfterAccepted(t *testing.T) {
 
 	a.handlePrepare(msg3)
 
-	mi := a.instance.(*mockInstance)
-	if len(mi.msgs) != 3 {
-		t.Errorf("the msgs length is %d, want 1", len(mi.msgs))
+	msgs := a.instance.readMsgs()
+	if len(msgs) != 3 {
+		t.Errorf("the msgs length is %d, want 1", len(msgs))
 	}
 	ballot := paxospb.BallotNumber{
 		ProposalID: msg2.ProposalID,
@@ -207,7 +205,7 @@ func TestSecondHighPrepareAfterAccepted(t *testing.T) {
 		t.Errorf("the acceptor value is %v, want %v", a.state.AccetpedValue, msg2.Value)
 	}
 
-	msgReply := mi.msgs[2]
+	msgReply := msgs[2]
 	ballot3 := paxospb.BallotNumber{
 		ProposalID: msgReply.PreAcceptID,
 		NodeID:     msgReply.PreAcceptNodeID,
@@ -234,9 +232,9 @@ func TestAcceptSame(t *testing.T) {
 	msg2 := msg
 	msg2.MsgType = paxospb.PaxosAccept
 	a.handleAccept(msg2)
-	mi := a.instance.(*mockInstance)
-	if len(mi.msgs) != 2 {
-		t.Errorf("the msgs length is %d, want 2", len(mi.msgs))
+	msgs := a.instance.readMsgs()
+	if len(msgs) != 2 {
+		t.Errorf("the msgs length is %d, want 2", len(msgs))
 	}
 	ballot := paxospb.BallotNumber{
 		ProposalID: msg.ProposalID,
@@ -268,9 +266,9 @@ func TestAcceptLow(t *testing.T) {
 	msg2.MsgType = paxospb.PaxosAccept
 	msg2.ProposalID = 3
 	a.handleAccept(msg2)
-	mi := a.instance.(*mockInstance)
-	if len(mi.msgs) != 2 {
-		t.Errorf("the msgs length is %d, want 2", len(mi.msgs))
+	msgs := a.instance.readMsgs()
+	if len(msgs) != 2 {
+		t.Errorf("the msgs length is %d, want 2", len(msgs))
 	}
 	ballot := paxospb.BallotNumber{
 		ProposalID: msg.ProposalID,
@@ -285,8 +283,8 @@ func TestAcceptLow(t *testing.T) {
 	if len(a.state.AccetpedValue) != 0 {
 		t.Errorf("the acceptor value length is %d, want 0", len(a.state.AccetpedValue))
 	}
-	if mi.msgs[1].RejectByPromiseID != msg.ProposalID {
-		t.Errorf("the msgReply reject propomise id is %d, want %d", mi.msgs[1].RejectByPromiseID, msg.ProposalID)
+	if msgs[1].RejectByPromiseID != msg.ProposalID {
+		t.Errorf("the msgReply reject propomise id is %d, want %d", msgs[1].RejectByPromiseID, msg.ProposalID)
 	}
 }
 
@@ -305,9 +303,9 @@ func TestAcceptHigh(t *testing.T) {
 	msg2.MsgType = paxospb.PaxosAccept
 	msg2.ProposalID = 10
 	a.handleAccept(msg2)
-	mi := a.instance.(*mockInstance)
-	if len(mi.msgs) != 2 {
-		t.Errorf("the msgs length is %d, want 2", len(mi.msgs))
+	msgs := a.instance.readMsgs()
+	if len(msgs) != 2 {
+		t.Errorf("the msgs length is %d, want 2", len(msgs))
 	}
 	ballot := paxospb.BallotNumber{
 		ProposalID: msg2.ProposalID,

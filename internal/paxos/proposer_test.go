@@ -7,15 +7,8 @@ import (
 )
 
 func getTestProposer() *proposer {
-	remotes := make(map[uint64]*remote, 0)
-	remotes[1] = &remote{}
-	remotes[2] = &remote{}
-	remotes[3] = &remote{}
-	remotes[4] = &remote{}
-	mi := &mockInstance{
-		remotes: remotes,
-	}
-	proposer := newProposer(mi)
+	i := getTestInstance()
+	proposer := newProposer(i)
 	proposer.prepareTimeout = 10
 	proposer.acceptTimeout = 5
 	return proposer

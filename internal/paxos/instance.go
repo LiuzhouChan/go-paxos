@@ -26,25 +26,8 @@ type IInstance interface {
 	send(paxospb.PaxosMsg)
 	getRemotes() map[uint64]*remote
 	readMsgs() []paxospb.PaxosMsg
-}
-
-type mockInstance struct {
-	msgs    []paxospb.PaxosMsg
-	remotes map[uint64]*remote
-}
-
-func (mi *mockInstance) send(msg paxospb.PaxosMsg) {
-	mi.msgs = append(mi.msgs, msg)
-}
-
-func (mi *mockInstance) getRemotes() map[uint64]*remote {
-	return mi.remotes
-}
-
-func (mi *mockInstance) readMsgs() []paxospb.PaxosMsg {
-	msgs := mi.msgs
-	mi.msgs = make([]paxospb.PaxosMsg, 0)
-	return msgs
+	getNodeID() uint64
+	getLog() *entryLog
 }
 
 type instance struct {
@@ -122,6 +105,14 @@ func (i *instance) addNode(nodeID uint64) {
 
 func (i *instance) getRemotes() map[uint64]*remote {
 	return i.remotes
+}
+
+func (i *instance) getNodeID() uint64 {
+	return i.nodeID
+}
+
+func (i *instance) getLog() *entryLog {
+	return i.log
 }
 
 func (i *instance) readMsgs() []paxospb.PaxosMsg {

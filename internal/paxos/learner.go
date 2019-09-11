@@ -7,7 +7,7 @@ import (
 
 //learner ...
 type learner struct {
-	instance *instance
+	instance IInstance
 	acceptor *acceptor
 
 	instanceID uint64
@@ -24,7 +24,7 @@ type learner struct {
 	learnedValue []byte
 }
 
-func newLearner(i *instance, acceptor *acceptor) *learner {
+func newLearner(i IInstance, acceptor *acceptor) *learner {
 	l := &learner{
 		instance:     i,
 		isLearned:    false,
@@ -59,6 +59,7 @@ func (l *learner) setSeenInstanceID(instanceID, nodeID uint64) {
 func (l *learner) tick() {
 	l.askForLearnTick++
 	if l.timeForAskForLearn() {
+		l.askForLearnTick = 0
 		l.askForLearn()
 	}
 }
@@ -73,9 +74,10 @@ func (l *learner) askForLearn() {
 		InstanceID: l.instanceID,
 		MsgType:    paxospb.PaxosLearnerAskForLearn,
 	}
+	remotes := l.instance.getRemotes()
 	// broadcast askfor learn msg to peer
-	for nid := range l.instance.remotes {
-		if nid != l.instance.nodeID {
+	for nid := range remotes {
+		if nid != l.instance.getNodeID() {
 			msg.To = nid
 			l.instance.send(msg)
 		}
@@ -88,11 +90,11 @@ func (l *learner) handleAskForLearn(msg paxospb.PaxosMsg) {
 		return
 	}
 	// l.sendNowInstanceID(msg.InstanceID, msg.From)
-	if msg.InstanceID < l.instance.log.firstInstanceID() {
+	if msg.InstanceID < l.instance.getLog().firstInstanceID() {
 		plog.Panicf("the instance id is less than the first instance id: %d, %d",
-			msg.InstanceID, l.instance.log.firstInstanceID())
+			msg.InstanceID, l.instance.getLog().firstInstanceID())
 	}
-	ents, err := l.instance.log.getEntries(msg.InstanceID, l.instance.log.committed+1)
+	ents, err := l.instance.getLog().getEntries(msg.InstanceID, l.instance.getLog().committed+1)
 	if err != nil {
 		plog.Errorf("%v", err)
 		return
@@ -177,7 +179,8 @@ func (l *learner) proposerSendSuccess(learnInstanceID, proposalID uint64) {
 		InstanceID: learnInstanceID,
 		ProposalID: proposalID,
 	}
-	for nid := range l.instance.remotes {
+	remotes := l.instance.getRemotes()
+	for nid := range remotes {
 		msg.To = nid
 		l.instance.send(msg)
 	}
