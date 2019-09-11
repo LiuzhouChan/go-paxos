@@ -18,7 +18,6 @@ type learner struct {
 	askForLearnTick    uint64
 	askFroLearnTimeout uint64
 
-	isIMlearning bool
 	isLearned    bool
 	key          uint64
 	learnedValue []byte
@@ -35,12 +34,14 @@ func newLearner(i IInstance, acceptor *acceptor) *learner {
 }
 
 func (l *learner) learnValueWithoutWrite(key uint64, value []byte) {
+	l.key = key
 	l.learnedValue = stringutil.BytesDeepCopy(value)
 	l.isLearned = true
 }
 
 func (l *learner) newInstance() {
 	l.instanceID++
+	l.key = 0
 	l.learnedValue = l.learnedValue[:0]
 	l.isLearned = false
 }
@@ -105,45 +106,45 @@ func (l *learner) handleAskForLearn(msg paxospb.PaxosMsg) {
 	}
 }
 
-func (l *learner) sendNowInstanceID(instanceID, to uint64) {
-	resp := paxospb.PaxosMsg{
-		To:            to,
-		MsgType:       paxospb.PaxosLearnerAskForLearn,
-		InstanceID:    instanceID,
-		NowInstanceID: l.instanceID,
-	}
-	l.instance.send(resp)
-}
+// func (l *learner) sendNowInstanceID(instanceID, to uint64) {
+// 	resp := paxospb.PaxosMsg{
+// 		To:            to,
+// 		MsgType:       paxospb.PaxosLearnerAskForLearn,
+// 		InstanceID:    instanceID,
+// 		NowInstanceID: l.instanceID,
+// 	}
+// 	l.instance.send(resp)
+// }
 
-func (l *learner) handleSendNowInstanceID(msg paxospb.PaxosMsg) {
-	// we get the instance id of others right now
-	l.setSeenInstanceID(msg.NowInstanceID, msg.From)
-	if msg.InstanceID != l.instanceID {
-		plog.Infof("lag msg, skip")
-		return
-	}
-	if msg.NowInstanceID <= l.instanceID {
-		plog.Infof("lag msg, skip")
-		return
-	}
-	if !l.isIMlearning {
-		l.comfirmAskForLearn(msg.From)
-	}
-}
+// func (l *learner) handleSendNowInstanceID(msg paxospb.PaxosMsg) {
+// 	// we get the instance id of others right now
+// 	l.setSeenInstanceID(msg.NowInstanceID, msg.From)
+// 	if msg.InstanceID != l.instanceID {
+// 		plog.Infof("lag msg, skip")
+// 		return
+// 	}
+// 	if msg.NowInstanceID <= l.instanceID {
+// 		plog.Infof("lag msg, skip")
+// 		return
+// 	}
+// 	if !l.isIMlearning {
+// 		l.comfirmAskForLearn(msg.From)
+// 	}
+// }
 
-func (l *learner) comfirmAskForLearn(to uint64) {
-	msg := paxospb.PaxosMsg{
-		To:         to,
-		InstanceID: l.instanceID,
-		MsgType:    paxospb.PaxosLearnerConfirmAskForLearn,
-	}
-	l.instance.send(msg)
-	l.isIMlearning = true
-}
+// func (l *learner) comfirmAskForLearn(to uint64) {
+// 	msg := paxospb.PaxosMsg{
+// 		To:         to,
+// 		InstanceID: l.instanceID,
+// 		MsgType:    paxospb.PaxosLearnerConfirmAskForLearn,
+// 	}
+// 	l.instance.send(msg)
+// 	l.isIMlearning = true
+// }
 
-func (l *learner) handleComfirmAskForLearn(msg paxospb.PaxosMsg) {
-	// send replicate msg now
-}
+// func (l *learner) handleComfirmAskForLearn(msg paxospb.PaxosMsg) {
+// 	// send replicate msg now
+// }
 
 func (l *learner) sendLearnValue(to uint64, learnInstanceID uint64,
 	learnedBallot paxospb.BallotNumber, key uint64, learnedValue []byte) {
@@ -170,7 +171,6 @@ func (l *learner) handleSendLearnValue(msg paxospb.PaxosMsg) {
 	} else {
 		l.learnValueWithoutWrite(msg.Key, msg.Value)
 	}
-
 }
 
 func (l *learner) proposerSendSuccess(learnInstanceID, proposalID uint64) {

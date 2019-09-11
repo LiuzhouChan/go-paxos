@@ -7,8 +7,8 @@ import (
 )
 
 func getTestProposer() *proposer {
-	i := getTestInstance()
-	proposer := newProposer(i)
+	l := getTestLearner()
+	proposer := newProposer(l.instance, l)
 	proposer.prepareTimeout = 10
 	proposer.acceptTimeout = 5
 	return proposer
@@ -132,10 +132,13 @@ func TestHandleAcceptReply(t *testing.T) {
 	msg6.From = 3
 	p.handleAcceptReply(msg5)
 	p.handleAcceptReply(msg6)
-	// msgs := p.instance.readMsgs()
-	// if len(msgs) != len(p.instance.getRemotes()) {
-	// 	t.Errorf("the len of msgs is %d, want %d", len(msgs), len(p.instance.getRemotes()))
-	// }
+	msgs := p.instance.readMsgs()
+	if len(msgs) != len(p.instance.getRemotes()) {
+		t.Errorf("the len of msgs is %d, want %d", len(msgs), len(p.instance.getRemotes()))
+	}
+	if msgs[0].MsgType != paxospb.PaxosLearnerProposerSendSuccess {
+		t.Errorf("msgs[0].MsgType is %d, want %d", msgs[0].MsgType, paxospb.PaxosLearnerProposerSendSuccess)
+	}
 	if p.st != closing {
 		t.Errorf("the state after acceptor should be cloing")
 	}
@@ -229,5 +232,44 @@ func TestAcceptTimeoutWithReject(t *testing.T) {
 	}
 	if p.canSkipPrepare {
 		t.Errorf("canSkipPrepare should be false")
+	}
+}
+
+func TestProposerNewInstance(t *testing.T) {
+	p := getTestProposer()
+	p.prepare(false)
+	p.instance.readMsgs()
+	if len(p.votes) != 0 {
+		t.Errorf("the len of p.vote should be 0")
+	}
+	msg1 := paxospb.PaxosMsg{
+		MsgType:    paxospb.PaxosPrepareReply,
+		From:       1,
+		ProposalID: p.proposalID,
+	}
+	msg2 := msg1
+	msg2.From = 2
+	msg3 := msg1
+	msg3.From = 3
+	p.handlePrepareReply(msg1)
+	p.handlePrepareReply(msg2)
+	p.handlePrepareReply(msg3)
+	p.instance.readMsgs()
+
+	p.newInstance()
+	if !p.canSkipPrepare {
+		t.Errorf("canSkipPrepare should be true")
+	}
+	if p.acceptingTick != 0 || p.preparingTick != 0 {
+		t.Errorf("the tick should be 0")
+	}
+	if len(p.value) != 0 {
+		t.Errorf("len(p.value) is %d, want 0", len(p.value))
+	}
+	if len(p.votes) != 0 {
+		t.Errorf("len(p.votes) is %d, want 0", len(p.value))
+	}
+	if p.highestOtherProposalID != 0 {
+		t.Errorf("p.highestOtherProposalID ")
 	}
 }

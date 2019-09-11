@@ -45,9 +45,10 @@ type proposer struct {
 	st                          state
 }
 
-func newProposer(i IInstance) *proposer {
+func newProposer(i IInstance, l *learner) *proposer {
 	p := &proposer{
 		instance:   i,
+		learner:    l,
 		proposalID: 1,
 		value:      []byte{},
 	}
@@ -57,6 +58,8 @@ func newProposer(i IInstance) *proposer {
 func (p *proposer) newInstance() {
 	p.instanceID++
 	p.votes = make(map[uint64]bool)
+	p.preparingTick = 0
+	p.acceptingTick = 0
 	p.highestOtherProposalID = 0
 	p.value = p.value[:0]
 	p.st = closing
@@ -252,6 +255,7 @@ func (p *proposer) handleAcceptReply(msg paxospb.PaxosMsg) {
 		// pass
 		plog.Infof("[Pass] start send learn")
 		p.st = closing
+		p.learner.proposerSendSuccess(p.instanceID, p.proposalID)
 	} else if len(p.votes)-count == p.quorum() {
 		plog.Infof("[Not Pass] wait and restart prepare")
 	}

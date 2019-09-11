@@ -14,9 +14,16 @@ func getTestInstance() IInstance {
 	for i := uint64(1); i < 5; i++ {
 		remotes[i] = &remote{}
 	}
+	el := getTestEntryLog()
+	ents := []paxospb.Entry{}
+	for i := uint64(1); i < 11; i++ {
+		ents = append(ents, paxospb.Entry{AcceptorState: paxospb.AcceptorState{InstanceID: i}})
+	}
+	el.append(ents)
+	el.commitTo(el.lastInstanceID())
 	mi := &mockInstance{
 		remotes: remotes,
-		log:     getTestEntryLog(),
+		log:     el,
 		nodeID:  1,
 		msgs:    make([]paxospb.PaxosMsg, 0),
 	}

@@ -64,8 +64,8 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 	}
 
 	acceptor := newAcceptor(i)
-	proposer := newProposer(i)
 	learner := newLearner(i, acceptor)
+	proposer := newProposer(i, learner)
 
 	acceptor.instanceID = i.instanceID
 	acceptor.state = st.AcceptorState
@@ -256,10 +256,10 @@ func (i *instance) handleMessageForLearner(msg paxospb.PaxosMsg) {
 		i.learner.handleSendLearnValue(msg)
 	case paxospb.PaxosLearnerProposerSendSuccess:
 		i.learner.handleProposerSendSuccess(msg)
-	case paxospb.PaxosLearnerSendNowInstanceID:
-		i.learner.handleSendNowInstanceID(msg)
-	case paxospb.PaxosLearnerConfirmAskForLearn:
-		i.learner.handleComfirmAskForLearn(msg)
+	// case paxospb.PaxosLearnerSendNowInstanceID:
+	// 	i.learner.handleSendNowInstanceID(msg)
+	// case paxospb.PaxosLearnerConfirmAskForLearn:
+	// 	i.learner.handleComfirmAskForLearn(msg)
 	default:
 		plog.Panicf("unknow msg type for learner")
 	}

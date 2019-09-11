@@ -322,7 +322,7 @@ func TestAcceptHigh(t *testing.T) {
 	}
 }
 
-func TestNewInstace(t *testing.T) {
+func TestAcceptorNewInstance(t *testing.T) {
 	a := getTestAcceptor()
 	msg := paxospb.PaxosMsg{
 		MsgType:        paxospb.PaxosPrepare,
