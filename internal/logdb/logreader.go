@@ -26,10 +26,11 @@ type LogReader struct {
 // NewLogReader creates and returns a new LogReader instance.
 func NewLogReader(groupID uint64, nodeID uint64, logdb paxosio.ILogDB) *LogReader {
 	l := &LogReader{
-		logdb:   logdb,
-		groupID: groupID,
-		nodeID:  nodeID,
-		length:  1,
+		logdb:            logdb,
+		groupID:          groupID,
+		nodeID:           nodeID,
+		length:           1,
+		markerInstanceID: 0,
 	}
 	return l
 }
