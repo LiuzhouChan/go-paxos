@@ -26,7 +26,8 @@ func (st state) String() string {
 
 //proposer ...
 type proposer struct {
-	instance                    *instance
+	instance                    IInstance
+	learner                     *learner
 	nodeID                      uint64
 	proposalID                  uint64
 	instanceID                  uint64
@@ -42,10 +43,9 @@ type proposer struct {
 	prepareTimeout              uint64
 	acceptTimeout               uint64
 	st                          state
-	learner                     *learner
 }
 
-func newProposer(i *instance) *proposer {
+func newProposer(i IInstance) *proposer {
 	p := &proposer{
 		instance:   i,
 		proposalID: 1,
@@ -92,11 +92,13 @@ func (p *proposer) tick() {
 	if p.st == preparing {
 		p.prepareTick()
 		if p.timeForPrepareTimeout() {
+			p.preparingTick = 0
 			p.prepare(p.rejectBySomeone)
 		}
 	} else if p.st == accepting {
 		p.acceptTick()
 		if p.timeForAcceptTimeout() {
+			p.acceptingTick = 0
 			p.prepare(p.rejectBySomeone)
 		}
 	}
@@ -119,7 +121,7 @@ func (p *proposer) timeForAcceptTimeout() bool {
 }
 
 func (p *proposer) quorum() int {
-	return len(p.instance.remotes)/2 + 1
+	return len(p.instance.getRemotes())/2 + 1
 }
 
 func (p *proposer) isSingleNodeQuorum() bool {
@@ -142,7 +144,6 @@ func (p *proposer) newValue(key uint64, value []byte) {
 
 func (p *proposer) prepare(needNewBallot bool) {
 	p.st = preparing
-	p.preparingTick = 0
 	p.canSkipPrepare = false
 	p.rejectBySomeone = false
 	p.highestOtherPreAcceptBallot = paxospb.BallotNumber{}
@@ -155,7 +156,8 @@ func (p *proposer) prepare(needNewBallot bool) {
 		ProposalID: p.proposalID,
 	}
 	p.votes = make(map[uint64]bool)
-	for nid := range p.instance.remotes {
+	remotes := p.instance.getRemotes()
+	for nid := range remotes {
 		msg.To = nid
 		p.instance.send(msg)
 	}
@@ -217,7 +219,8 @@ func (p *proposer) accept() {
 		Key:        p.key,
 	}
 	p.votes = make(map[uint64]bool)
-	for nid := range p.instance.remotes {
+	remotes := p.instance.getRemotes()
+	for nid := range remotes {
 		msg.To = nid
 		p.instance.send(msg)
 	}
@@ -249,7 +252,6 @@ func (p *proposer) handleAcceptReply(msg paxospb.PaxosMsg) {
 		// pass
 		plog.Infof("[Pass] start send learn")
 		p.st = closing
-
 	} else if len(p.votes)-count == p.quorum() {
 		plog.Infof("[Not Pass] wait and restart prepare")
 	}
