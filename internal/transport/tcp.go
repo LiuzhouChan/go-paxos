@@ -229,7 +229,12 @@ func (c *TCPConnection) Close() {
 func (c *TCPConnection) SendMessageBatch(batch paxospb.MessageBatch) error {
 	header := requestHeader{method: paxosType}
 	var buf []byte
-	buf = c.payload
+	sz := batch.SizeUpperLimit()
+	if len(c.payload) < sz {
+		buf = make([]byte, sz)
+	} else {
+		buf = c.payload
+	}
 	n, err := batch.MarshalTo(buf)
 	if err != nil {
 		panic(err)

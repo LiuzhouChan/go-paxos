@@ -239,6 +239,7 @@ func (t *Transport) processQueue(groupID uint64, toNodeID uint64,
 	idleTimer := time.NewTimer(idleTimeout)
 	defer idleTimer.Stop()
 	// sz := uint64(0)
+	plog.Infof("in the transport processQueue")
 	batch := paxospb.MessageBatch{
 		SourceAddress: t.sourceAddress,
 		BinVer:        paxosio.RPCBinVersion,
@@ -263,6 +264,7 @@ func (t *Transport) processQueue(groupID uint64, toNodeID uint64,
 					done = true
 				}
 			}
+			plog.Infof("twobatch")
 			twoBatch := false
 			if len(requests) == 1 {
 				batch.Requests = requests
@@ -270,12 +272,13 @@ func (t *Transport) processQueue(groupID uint64, toNodeID uint64,
 				twoBatch = true
 				batch.Requests = requests[:len(requests)-1]
 			}
-
+			plog.Infof("send messagebatch")
 			if err := t.sendMessageBatch(conn, batch); err != nil {
 				plog.Warningf("Send batch failed, target node %s (%v), %d",
 					logutil.DescribeNode(groupID, toNodeID), err, len(batch.Requests))
 				return err
 			}
+			plog.Infof("if two batch")
 			if twoBatch {
 				batch.Requests = []paxospb.PaxosMsg{requests[len(requests)-1]}
 				if err := t.sendMessageBatch(conn, batch); err != nil {
@@ -284,6 +287,7 @@ func (t *Transport) processQueue(groupID uint64, toNodeID uint64,
 					return err
 				}
 			}
+			plog.Infof("lazyfree")
 			requests, batch = lazyFree(requests, batch)
 			requests = requests[:0]
 		}
