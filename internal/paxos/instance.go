@@ -2,6 +2,7 @@ package paxos
 
 import (
 	"github.com/LiuzhouChan/go-paxos/config"
+	"github.com/LiuzhouChan/go-paxos/internal/settings"
 	"github.com/LiuzhouChan/go-paxos/logger"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
 )
@@ -71,9 +72,12 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 	acceptor.state = st.AcceptorState
 
 	learner.instanceID = i.instanceID
+	learner.askFroLearnTimeout = c.AskForLearnRTT
 
 	proposer.instanceID = i.instanceID
 	proposer.proposalID = st.AcceptorState.PromiseBallot.ProposalID + 1
+	proposer.prepareTimeout = settings.Soft.PrepareTickRTT
+	proposer.acceptTimeout = settings.Soft.AcceptTickRTT
 
 	i.acceptor = acceptor
 	i.proposer = proposer

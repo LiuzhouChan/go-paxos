@@ -18,7 +18,7 @@ import (
 type INodeRegistry interface {
 	AddNode(groupID uint64, nodeID uint64, url string)
 	RemoveNode(groupID uint64, nodeID uint64)
-	RemoveCluster(groupID uint64)
+	RemoveGroup(groupID uint64)
 	Resolve(groupID uint64, nodeID uint64) (string, string, error)
 }
 

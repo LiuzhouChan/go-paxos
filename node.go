@@ -374,3 +374,12 @@ func (rc *node) setInitialized() {
 	defer rc.initializedMu.Unlock()
 	rc.initializedMu.initialized = true
 }
+
+func (rc *node) setInitialStatus(instanceID uint64) {
+	if rc.initialized() {
+		panic("setInitialStatus called twice")
+	}
+	plog.Infof("%s initial instance id set to %d", rc.describe(), instanceID)
+	rc.publishedInstanceID = instanceID
+	rc.setInitialized()
+}

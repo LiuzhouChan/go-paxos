@@ -45,6 +45,9 @@ type soft struct {
 	LatencySampleRatio uint64
 
 	NodeHostSyncPoolSize uint64
+
+	PrepareTickRTT uint64
+	AcceptTickRTT  uint64
 }
 
 func getSoftSettings() soft {
@@ -72,5 +75,7 @@ func getDefaultSoftSettings() soft {
 		BatchedEntryApply:           0,
 		NodeHostSyncPoolSize:        8,
 		LatencySampleRatio:          0,
+		PrepareTickRTT:              10,
+		AcceptTickRTT:               5,
 	}
 }
