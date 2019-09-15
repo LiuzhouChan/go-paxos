@@ -22,6 +22,7 @@ func newAcceptor(i IInstance) *acceptor {
 func (a *acceptor) newInstance() {
 	a.instanceID++
 	a.acceptKey = 0
+	a.state.InstanceID = a.instanceID
 	a.state.AccetpedValue = a.state.AccetpedValue[:0]
 	a.state.AcceptedBallot = paxospb.BallotNumber{}
 }

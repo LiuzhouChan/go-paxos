@@ -53,6 +53,7 @@ func (q *entryQueue) add(ent paxospb.Entry) (bool, bool) {
 		return false, true
 	}
 	q.queue.Enqueue(ent)
+	q.mu.Unlock()
 	return true, false
 }
 
@@ -63,6 +64,7 @@ func (q *entryQueue) get() (paxospb.Entry, bool) {
 		return paxospb.Entry{}, false
 	}
 	ent := q.queue.Dequeue()
+	q.mu.Unlock()
 	return ent.(paxospb.Entry), true
 }
 

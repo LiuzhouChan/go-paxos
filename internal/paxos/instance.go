@@ -62,8 +62,11 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 	st := logdb.NodeState()
 	if !paxospb.IsEmptyState(st) {
 		i.loadState(st)
+	} else {
+		i.instanceID = 1
+		st.AcceptorState.InstanceID = 1
 	}
-
+	plog.Infof("the instance id is %d", i.instanceID)
 	acceptor := newAcceptor(i)
 	learner := newLearner(i, acceptor)
 	proposer := newProposer(i, learner)
@@ -130,7 +133,7 @@ func (i *instance) deleteRemote(nodeID uint64) {
 }
 
 func (i *instance) setRemote(nodeID uint64, match uint64, next uint64) {
-	plog.Infof("set remote, id %s, match %d, next %d", nodeID, match, next)
+	plog.Infof("set remote, id %d, match %d, next %d", nodeID, match, next)
 	i.remotes[nodeID] = &remote{
 		next:  next,
 		match: match,
@@ -179,8 +182,7 @@ func defaultHandle(i *instance, msg paxospb.PaxosMsg) {
 		i.tick()
 	} else if msg.MsgType == paxospb.Propose {
 		i.handlePropose(msg)
-	}
-	if msg.MsgType == paxospb.PaxosPrepareReply ||
+	} else if msg.MsgType == paxospb.PaxosPrepareReply ||
 		msg.MsgType == paxospb.PaxosAcceptReply ||
 		msg.MsgType == paxospb.PaxosProposalSendNewValue {
 		i.handleMessageForProposer(msg)
@@ -272,9 +274,10 @@ func (i *instance) handleMessageForLearner(msg paxospb.PaxosMsg) {
 	if i.learner.isLearned {
 		ent := paxospb.Entry{
 			Type:          paxospb.ApplicationEntry,
-			Key:           msg.Key,
+			Key:           i.learner.key,
 			AcceptorState: i.acceptor.state,
 		}
+		plog.Infof("the acceptor state instance id to commit is %d", i.acceptor.state.InstanceID)
 		i.log.append([]paxospb.Entry{ent})
 		i.log.commitTo(i.instanceID)
 		i.resetForNewInstance()

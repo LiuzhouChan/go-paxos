@@ -107,6 +107,7 @@ func (rc *node) startPaxos(cc config.Config,
 }
 
 func (rc *node) close() {
+	rc.requestRemoval()
 	rc.pendingProposals.close()
 }
 
@@ -185,12 +186,16 @@ func (rc *node) publishCommitRec(rec rsm.Commit) bool {
 }
 
 func (rc *node) publishEntries(ents []paxospb.Entry) bool {
+	if len(ents) == 0 {
+		return true
+	}
 	rec := rsm.Commit{
 		Entries: ents,
 	}
 	if !rc.publishCommitRec(rec) {
 		return false
 	}
+	plog.Infof("the length of ents is %d", len(ents))
 	rc.publishedInstanceID = ents[len(ents)-1].AcceptorState.InstanceID
 	return true
 }
@@ -254,6 +259,7 @@ func (rc *node) applyPaxosUpdates(ud paxospb.Update) bool {
 }
 
 func (rc *node) processPaxosUpdate(ud paxospb.Update) bool {
+	rc.logreader.Append(ud.EntriesToSave)
 	rc.sendMessages(ud.Messages)
 	return true
 }

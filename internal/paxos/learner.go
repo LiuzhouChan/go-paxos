@@ -77,6 +77,7 @@ func (l *learner) askForLearn() {
 	}
 	remotes := l.instance.getRemotes()
 	// broadcast askfor learn msg to peer
+	plog.Infof("the remotes is: %v", l.instance.getRemotes())
 	for nid := range remotes {
 		if nid != l.instance.getNodeID() {
 			msg.To = nid
@@ -204,6 +205,6 @@ func (l *learner) handleProposerSendSuccess(msg paxospb.PaxosMsg) {
 		plog.Infof("proposal ballot not same to accepted ballot")
 		return
 	}
-	l.learnValueWithoutWrite(msg.Key, msg.Value)
-	plog.Infof("learn value ok")
+	l.learnValueWithoutWrite(l.acceptor.acceptKey, l.acceptor.state.AccetpedValue)
+	plog.Infof("learn value ok, while the instanceid %d, key %d, value %v", l.instanceID, l.acceptor.acceptKey, l.acceptor.state.AccetpedValue)
 }

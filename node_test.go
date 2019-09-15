@@ -11,6 +11,7 @@ import (
 
 	"github.com/LiuzhouChan/go-paxos/config"
 	"github.com/LiuzhouChan/go-paxos/internal/logdb"
+	ipaxos "github.com/LiuzhouChan/go-paxos/internal/paxos"
 	"github.com/LiuzhouChan/go-paxos/internal/rsm"
 	"github.com/LiuzhouChan/go-paxos/internal/server"
 	"github.com/LiuzhouChan/go-paxos/internal/settings"
@@ -18,6 +19,7 @@ import (
 	"github.com/LiuzhouChan/go-paxos/internal/transport"
 	"github.com/LiuzhouChan/go-paxos/paxosio"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
+	"github.com/cockroachdb/cockroach/pkg/util/leaktest"
 )
 
 const (
@@ -77,7 +79,19 @@ func newTestMessageRouter(groupID uint64,
 }
 
 func (r *testMessageRouter) shouldDrop(msg paxospb.PaxosMsg) bool {
-
+	if ipaxos.IsLocalMessageType(msg.MsgType) {
+		return false
+	}
+	if msg.From == msg.To {
+		// the local msg should not drop
+		return false
+	}
+	if r.dropRate == 0 {
+		return false
+	}
+	if rand.Uint32()%100 < uint32(r.dropRate) {
+		return true
+	}
 	return false
 }
 
@@ -85,9 +99,10 @@ func (r *testMessageRouter) sendMessage(msg paxospb.PaxosMsg) {
 	if msg.GroupID != r.groupID {
 		panic("group id does not match")
 	}
-	if r.shouldDrop(msg) {
-		return
-	}
+	// if r.shouldDrop(msg) {
+	// 	return
+	// }
+	plog.Infof("send msgs %v", msg)
 	if q, ok := r.msgReceiveCh[msg.To]; ok {
 		q.Add(msg)
 	}
@@ -111,6 +126,11 @@ func (r *testMessageRouter) addChannel(nodeID uint64, q *server.MessageQueue) {
 
 func cleanupTestDir() {
 	os.RemoveAll(paxosTestTopDir)
+}
+
+func getTestPaxosNodes(count int) ([]*node, []*rsm.StateMachine,
+	*testMessageRouter, paxosio.ILogDB) {
+	return doGetTestPaxosNodes(1, count, nil)
 }
 
 func doGetTestPaxosNodes(startID uint64, count int,
@@ -154,8 +174,9 @@ func doGetTestPaxosNodes(startID uint64, count int,
 		// node registry
 		nr := transport.NewNodes(settings.Soft.StreamConnections)
 		config := config.Config{
-			NodeID:  uint64(i),
-			GroupID: testGroupID,
+			NodeID:         uint64(i),
+			GroupID:        testGroupID,
+			AskForLearnRTT: 10,
 		}
 		addr := fmt.Sprintf("a%d", i)
 		ch := router.getMessageReceiveChannel(testGroupID, uint64(i))
@@ -203,7 +224,8 @@ func step(nodes []*node) bool {
 	for idx, ud := range nodeUpdates {
 		node := activeNodes[idx]
 		node.applyPaxosUpdates(ud)
-		node.sendMessages(ud.Messages)
+		// this part send msg to follower
+		// node.sendMessages(ud.Messages)
 	}
 	if ptc == nil {
 		ptc = nodes[0].logdb.GetLogDBThreadContext()
@@ -223,4 +245,121 @@ func step(nodes []*node) bool {
 		}
 	}
 	return hasEvent
+}
+
+func singleStepNodes(nodes []*node, smList []*rsm.StateMachine, r *testMessageRouter) {
+	for _, node := range nodes {
+		tickMsg := paxospb.PaxosMsg{
+			MsgType: paxospb.LocalTick,
+			To:      node.nodeID,
+		}
+		tickMsg.GroupID = testGroupID
+		r.sendMessage(tickMsg)
+	}
+	step(nodes)
+}
+
+func stepNodes(nodes []*node, smList []*rsm.StateMachine,
+	r *testMessageRouter, timeout uint64) {
+	s := timeout/tickMillisecond + 10
+	for i := uint64(0); i < s; i++ {
+		for _, node := range nodes {
+			tickMsg := paxospb.PaxosMsg{
+				MsgType: paxospb.LocalTick,
+				To:      node.nodeID,
+			}
+			tickMsg.GroupID = testGroupID
+			r.sendMessage(tickMsg)
+		}
+		step(nodes)
+	}
+}
+
+func stopNodes(nodes []*node) {
+	for _, node := range nodes {
+		node.close()
+	}
+}
+
+func TestNodeCanBeCreatedAndStarted(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	defer cleanupTestDir()
+	nodes, smList, _, ldb := getTestPaxosNodes(3)
+	if len(nodes) != 3 {
+		t.Errorf("len(nodes)=%d, want 3", len(nodes))
+	}
+	if len(smList) != 3 {
+		t.Errorf("len(smList)=%d, want 3", len(nodes))
+	}
+	defer stopNodes(nodes)
+	defer ldb.Close()
+}
+
+func getMaxLastApplied(smList []*rsm.StateMachine) uint64 {
+	maxLastApplied := uint64(0)
+	for _, sm := range smList {
+		la := sm.GetLastApplied()
+		if la > maxLastApplied {
+			maxLastApplied = la
+		}
+	}
+	return maxLastApplied
+}
+
+func getTestTimeout(timeoutInMillisecond uint64) time.Duration {
+	return time.Duration(timeoutInMillisecond) * time.Millisecond
+}
+
+func makeCheckedTestProposal(t *testing.T, data []byte, timeoutInMillisecond uint64,
+	nodes []*node, smList []*rsm.StateMachine, router *testMessageRouter,
+	expectedCode RequestResultCode, checkResult bool, expectedResult uint64) {
+	timeout := getTestTimeout(timeoutInMillisecond)
+	n := nodes[0]
+	rs, err := n.propose(data, nil, timeout)
+	if err != nil {
+		t.Fatal("failed to make proposal")
+	}
+	stepNodes(nodes, smList, router, timeoutInMillisecond+1000)
+	select {
+	case v := <-rs.CompletedC:
+		if v.code != expectedCode {
+			t.Errorf("got %d, want %d", v, expectedCode)
+		}
+		if checkResult {
+			if v.GetResult() != expectedResult {
+				t.Errorf("result %d, want %d", v.GetResult(), expectedResult)
+			}
+		}
+	default:
+		t.Errorf("failed to complete the proposal")
+	}
+}
+
+func runPaxosNodeTest(t *testing.T,
+	tf func(t *testing.T, nodes []*node, smList []*rsm.StateMachine,
+		router *testMessageRouter, ldb paxosio.ILogDB)) {
+	defer leaktest.AfterTest(t)()
+	defer cleanupTestDir()
+	nodes, smList, router, ldb := getTestPaxosNodes(3)
+	defer stopNodes(nodes)
+	defer ldb.Close()
+	tf(t, nodes, smList, router, ldb)
+}
+
+func TestProposalCanBeMadeWithMessageDrops(t *testing.T) {
+	tf := func(t *testing.T, nodes []*node, smList []*rsm.StateMachine,
+		router *testMessageRouter, ldb paxosio.ILogDB) {
+		router.dropRate = 3
+		for i := 0; i < 2; i++ {
+			plog.Infof("making proposal id: %d", i)
+			maxLastApplied := getMaxLastApplied(smList)
+			plog.Infof("maxLastApplied is: %d", maxLastApplied)
+			makeCheckedTestProposal(t, []byte("test-data"), 4000, nodes,
+				smList, router, requestCompleted, false, 0)
+			if getMaxLastApplied(smList) != maxLastApplied+1 {
+				t.Errorf("didn't move the last applied value in smList")
+			}
+		}
+	}
+	runPaxosNodeTest(t, tf)
 }

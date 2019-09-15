@@ -20,3 +20,13 @@ func max(x uint64, y uint64) uint64 {
 	}
 	return y
 }
+
+// IsLocalMessageType returns a boolean value indicating whether the specified
+// message type is a local message type.
+func IsLocalMessageType(t paxospb.MessageType) bool {
+	return isLocalMessageType(t)
+}
+
+func isLocalMessageType(t paxospb.MessageType) bool {
+	return t == paxospb.LocalTick
+}

@@ -1,6 +1,8 @@
 package paxos
 
 import (
+	"sort"
+
 	"github.com/LiuzhouChan/go-paxos/config"
 	"github.com/LiuzhouChan/go-paxos/internal/utils/stringutil"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
@@ -21,10 +23,15 @@ type Peer struct {
 
 // LaunchPeer starts or restarts a Paxos node.
 func LaunchPeer(config *config.Config, logdb ILogDB,
-	address []PeerAddress, initial bool, newNode bool) (*Peer, error) {
+	addresses []PeerAddress, initial bool, newNode bool) (*Peer, error) {
 	i := newInstance(config, logdb)
 	p := &Peer{i: i}
 	_, lastInstance := logdb.GetRange()
+	plog.Infof("LaunchPeer, lastInstanceID %d, initial %t, newNode %t",
+		lastInstance, initial, newNode)
+	if initial && newNode {
+		bootstrap(i, addresses)
+	}
 	if lastInstance == 0 {
 		p.prevState = emptyState
 	} else {
@@ -121,4 +128,14 @@ func getUpdate(i *instance, ppst paxospb.State,
 	}
 	ud.UpdateCommit = getUpdateCommit((ud))
 	return ud
+}
+
+// TODO: only use for first start. later to add configchange type
+func bootstrap(i *instance, addresses []PeerAddress) {
+	sort.Slice(addresses, func(i, j int) bool {
+		return addresses[i].NodeID < addresses[j].NodeID
+	})
+	for _, peer := range addresses {
+		i.addNode(peer.NodeID)
+	}
 }
