@@ -99,10 +99,10 @@ func (r *testMessageRouter) sendMessage(msg paxospb.PaxosMsg) {
 	if msg.GroupID != r.groupID {
 		panic("group id does not match")
 	}
-	// if r.shouldDrop(msg) {
-	// 	return
-	// }
-	plog.Infof("send msgs %v", msg)
+	if r.shouldDrop(msg) {
+		return
+	}
+	// plog.Infof("send msgs %v", msg)
 	if q, ok := r.msgReceiveCh[msg.To]; ok {
 		q.Add(msg)
 	}
@@ -350,7 +350,7 @@ func TestProposalCanBeMadeWithMessageDrops(t *testing.T) {
 	tf := func(t *testing.T, nodes []*node, smList []*rsm.StateMachine,
 		router *testMessageRouter, ldb paxosio.ILogDB) {
 		router.dropRate = 3
-		for i := 0; i < 2; i++ {
+		for i := 0; i < 20; i++ {
 			plog.Infof("making proposal id: %d", i)
 			maxLastApplied := getMaxLastApplied(smList)
 			plog.Infof("maxLastApplied is: %d", maxLastApplied)

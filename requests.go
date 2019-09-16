@@ -211,6 +211,7 @@ func (r *RequestState) Release() {
 	if r.pool != nil {
 		r.data = nil
 		r.key = 0
+		r.deadline = 0
 		r.completeHandler = nil
 		r.node = nil
 		r.pool.Put(r)
@@ -348,7 +349,8 @@ func (p *proposalShard) gcAt(now uint64) {
 	if p.stopped {
 		return
 	}
-	if now-p.lastGcTime < p.getTick() {
+	// plog.Infof("now-p.LastGcTime %v, getTick() %v", now-p.lastGcTime, p.getTick())
+	if now-p.lastGcTime < p.gcTick {
 		return
 	}
 	p.lastGcTime = now

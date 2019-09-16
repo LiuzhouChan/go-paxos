@@ -70,14 +70,14 @@ func (l *learner) timeForAskForLearn() bool {
 }
 
 func (l *learner) askForLearn() {
-	plog.Infof("start ask for learn")
+	// plog.Infof("start ask for learn")
 	msg := paxospb.PaxosMsg{
 		InstanceID: l.instanceID,
 		MsgType:    paxospb.PaxosLearnerAskForLearn,
 	}
 	remotes := l.instance.getRemotes()
 	// broadcast askfor learn msg to peer
-	plog.Infof("the remotes is: %v", l.instance.getRemotes())
+	// plog.Infof("the remotes is: %v", l.instance.getRemotes())
 	for nid := range remotes {
 		if nid != l.instance.getNodeID() {
 			msg.To = nid

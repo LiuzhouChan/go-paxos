@@ -90,6 +90,7 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 }
 
 func (i *instance) resetForNewInstance() {
+	i.instanceID++
 	i.acceptor.newInstance()
 	i.learner.newInstance()
 	i.proposer.newInstance()
@@ -277,7 +278,6 @@ func (i *instance) handleMessageForLearner(msg paxospb.PaxosMsg) {
 			Key:           i.learner.key,
 			AcceptorState: i.acceptor.state,
 		}
-		plog.Infof("the acceptor state instance id to commit is %d", i.acceptor.state.InstanceID)
 		i.log.append([]paxospb.Entry{ent})
 		i.log.commitTo(i.instanceID)
 		i.resetForNewInstance()
