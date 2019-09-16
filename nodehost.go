@@ -39,6 +39,7 @@ var (
 	streamConnections        = settings.Soft.StreamConnections
 	rsPoolSize               = settings.Soft.NodeHostSyncPoolSize
 	monitorInterval          = 100 * time.Millisecond
+	receiveQueueSize  uint64 = settings.Soft.PaxosNodeReceiveQueueLength
 )
 
 var (
@@ -88,7 +89,30 @@ func NewNodeHost(nhConfig config.NodeHostConfig) *NodeHost {
 	}
 	nh.msgHandler = newNodeHostMessageHandler(nh)
 	nh.groupMu.requests = make(map[uint64]*server.MessageQueue)
+	nh.createPools()
+	nh.createTransport()
 
+	plog.Infof("running in the standalone mode")
+	nh.createLogDB(nhConfig)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	nh.cancel = cancel
+	initializeFn := func() {
+		if err := nh.initialize(ctx, nhConfig); err != nil {
+			if err != context.Canceled && err != ErrCanceled {
+				plog.Panicf("nh.initialize failed %v", err)
+			}
+		}
+	}
+	initializeFn()
+
+	nh.stopper.RunWorker(func() {
+		nh.nodeMonitorMain(ctx, nhConfig)
+	})
+
+	nh.stopper.RunWorker(func() {
+		nh.tickWorkerMain()
+	})
 	return nh
 }
 
@@ -100,6 +124,47 @@ func (nh *NodeHost) NodeHostConfig() config.NodeHostConfig {
 //PaxosAddress ...
 func (nh *NodeHost) PaxosAddress() string {
 	return nh.nhConfig.PaxosAddress
+}
+
+//Stop ...
+func (nh *NodeHost) Stop() {
+	nh.groupMu.Lock()
+	nh.groupMu.stopped = true
+	nh.groupMu.Unlock()
+	nh.transport.RemoveMessageHandler()
+	allNodes := make([]paxosio.NodeInfo, 0)
+	nh.forEachGroup(func(cid uint64, node *node) bool {
+		nodeInfo := paxosio.NodeInfo{
+			GroupID: node.groupID,
+			NodeID:  node.nodeID,
+		}
+		allNodes = append(allNodes, nodeInfo)
+		return true
+	})
+	for _, node := range allNodes {
+		if err := nh.StopNode(node.GroupID, node.NodeID); err != nil {
+			plog.Errorf("failed to remove group %s", logutil.GroupID(node.GroupID))
+		}
+	}
+	nh.cancel()
+	plog.Debugf("%s is going to stop the nh stopper", nh.describe())
+	if nh.duStopper != nil {
+		nh.duStopper.Stop()
+	}
+	nh.stopper.Stop()
+	plog.Debugf("%s is going to stop the exec engine", nh.describe())
+	if nh.execEngine != nil {
+		nh.execEngine.stop()
+	}
+	plog.Debugf("%s is going to stop the transport module", nh.describe())
+	nh.transport.Stop()
+	plog.Debugf("%s transport module stopped", nh.describe())
+	if nh.logdb != nil {
+		nh.logdb.Close()
+	} else {
+		plog.Warningf("logdb not closed")
+	}
+	plog.Debugf("logdb closed, %s is now stopped", nh.describe())
 }
 
 //StartGroup ...
@@ -250,11 +315,15 @@ func (nh *NodeHost) createPools() {
 	}
 }
 
-func (nh *NodeHost) createLogDB(nhConfig config.Config) {
+func (nh *NodeHost) createLogDB(nhConfig config.NodeHostConfig) {
 	nhDirs, walDisr := nh.serverCtx.CreateNodeHostDir()
 	nh.serverCtx.CheckNodeHostDir(nh.nhConfig.PaxosAddress)
 	var factory config.LogDBFactoryFunc
-	factory = logdb.OpenLogDB
+	if nhConfig.LogDBFactory != nil {
+		factory = nhConfig.LogDBFactory
+	} else {
+		factory = logdb.OpenLogDB
+	}
 	logdb, err := factory(nhDirs, walDisr)
 	if err != nil {
 		panic(err)
@@ -452,6 +521,16 @@ func (nh *NodeHost) describe() string {
 	return nh.PaxosAddress()
 }
 
+func (nh *NodeHost) logNodeHostDetails() {
+	if nh.transport != nil {
+		plog.Infof("transport type: %s", nh.transport.Name())
+	}
+	if nh.logdb != nil {
+		plog.Infof("logdb type: %s", nh.logdb.Name())
+	}
+	plog.Infof("nodehost address: %s", nh.nhConfig.PaxosAddress)
+}
+
 func (nh *NodeHost) bootstrapGroup(nodes map[uint64]string,
 	join bool, config config.Config) (map[uint64]string, bool, error) {
 	binfo, err := nh.logdb.GetBootstrapInfo(config.GroupID, config.NodeID)
@@ -482,37 +561,56 @@ func (nh *NodeHost) startGroup(nodes map[uint64]string,
 	createStateMachine rsm.ManagedStateMachineFactory,
 	stopc chan struct{},
 	config config.Config) error {
+	groupID := config.GroupID
+	nodeID := config.NodeID
 	plog.Infof("start group called for %s, join %t, nodes %v",
-		logutil.DescribeNode(config.GroupID, config.NodeID), join, nodes)
+		logutil.DescribeNode(groupID, nodeID), join, nodes)
 	nh.groupMu.Lock()
 	defer nh.groupMu.Unlock()
 	if nh.groupMu.stopped {
 		return ErrSystemStopped
 	}
-	if _, ok := nh.groupMu.groups.Load(config.GroupID); ok {
+	if _, ok := nh.groupMu.groups.Load(groupID); ok {
 		return ErrGroupAlreadyExist
 	}
 	if join && len(nodes) > 0 {
 		plog.Errorf("trying to join %s with initial member list %v",
-			logutil.DescribeNode(config.GroupID, config.NodeID), nodes)
+			logutil.DescribeNode(groupID, nodeID), nodes)
 		return ErrInvalidGroupSettings
 	}
-	address, _, err := nh.bootstrapGroup(nodes, join, config)
+	addresses, initialMember, err := nh.bootstrapGroup(nodes, join, config)
 	if err == ErrInvalidGroupSettings {
-		return err
+		return ErrInvalidGroupSettings
 	}
 	if err != nil {
 		panic(err)
 	}
 	plog.Infof("bootstrap for %s returned address list %v",
-		logutil.DescribeNode(config.GroupID, config.NodeID), address)
-	for k, v := range address {
-		if k != config.NodeID {
+		logutil.DescribeNode(groupID, nodeID), addresses)
+	queue := server.NewMessageQueue(receiveQueueSize, false, lazyFreeCycle)
+	for k, v := range addresses {
+		if k != nodeID {
 			plog.Infof("AddNode called with node %s, addr %s",
-				logutil.DescribeNode(config.GroupID, config.NodeID), address)
-			nh.nodes.AddNode(config.GroupID, k, v)
+				logutil.DescribeNode(groupID, nodeID), addresses)
+			nh.nodes.AddNode(groupID, k, v)
 		}
 	}
+	rn := newNode(nh.nhConfig.PaxosAddress,
+		addresses,
+		initialMember,
+		createStateMachine(groupID, nodeID, stopc),
+		nh.execEngine.SetCommitReady,
+		nh.asyncSendPaxosRequest,
+		queue,
+		stopc,
+		nh.nodes,
+		nh.rsPool[nodeID%rsPoolSize],
+		config,
+		nh.nhConfig.RTTMillisecond,
+		nh.logdb)
+	nh.groupMu.groups.Store(groupID, rn)
+	nh.groupMu.requests[groupID] = queue
+	nh.groupMu.gsi++
 	return nil
 }
 

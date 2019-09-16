@@ -81,12 +81,12 @@ type ILogDB interface {
 	ListNodeInfo() ([]NodeInfo, error)
 
 	// SaveBootstrapInfo saves the specified bootstrap info to the log DB.
-	SaveBootstrapInfo(clusterID uint64,
+	SaveBootstrapInfo(groupID uint64,
 		nodeID uint64, bootstrap paxospb.Bootstrap) error
 	// GetBootstrapInfo returns saved bootstrap info from log DB. It returns
 	// ErrNoBootstrapInfo when there is no previously saved bootstrap info for
 	// the specified node.
-	GetBootstrapInfo(clusterID uint64, nodeID uint64) (*paxospb.Bootstrap, error)
+	GetBootstrapInfo(groupID uint64, nodeID uint64) (*paxospb.Bootstrap, error)
 	SavePaxosState(updates []paxospb.Update, ctx IContext) error
 
 	// IterateEntries returns the continuous Paxos log entries of the specified

@@ -46,6 +46,8 @@ type soft struct {
 
 	NodeHostSyncPoolSize uint64
 
+	PaxosNodeReceiveQueueLength uint64
+
 	PrepareTickRTT uint64
 	AcceptTickRTT  uint64
 }
@@ -75,6 +77,7 @@ func getDefaultSoftSettings() soft {
 		BatchedEntryApply:           0,
 		NodeHostSyncPoolSize:        8,
 		LatencySampleRatio:          0,
+		PaxosNodeReceiveQueueLength: 1024,
 		PrepareTickRTT:              10,
 		AcceptTickRTT:               5,
 	}

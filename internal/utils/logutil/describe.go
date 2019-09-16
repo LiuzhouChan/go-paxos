@@ -22,9 +22,9 @@ const (
 	mod = 100000
 )
 
-// ClusterID returns the string representation of a cluster id value
-func ClusterID(clusterID uint64) string {
-	return fmt.Sprintf("c%05d", clusterID%mod)
+// GroupID returns the string representation of a cluster id value
+func GroupID(groupID uint64) string {
+	return fmt.Sprintf("c%05d", groupID%mod)
 }
 
 // NodeID returns the string representation of a node id value.
@@ -34,12 +34,12 @@ func NodeID(nodeID uint64) string {
 
 // DescribeNode returns the string representation of a node with known
 // cluster id and node id values.
-func DescribeNode(clusterID uint64, nodeID uint64) string {
-	return fmt.Sprintf("[%05d:%05d]", clusterID%mod, nodeID%mod)
+func DescribeNode(groupID uint64, nodeID uint64) string {
+	return fmt.Sprintf("[%05d:%05d]", groupID%mod, nodeID%mod)
 }
 
 // DescribeSM returns the string representation of a State Machine object
 // with known cluster id and node id values.
-func DescribeSM(clusterID uint64, nodeID uint64) string {
-	return fmt.Sprintf("[%05d:%05d]", clusterID%mod, nodeID%mod)
+func DescribeSM(groupID uint64, nodeID uint64) string {
+	return fmt.Sprintf("[%05d:%05d]", groupID%mod, nodeID%mod)
 }

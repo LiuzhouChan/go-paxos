@@ -168,6 +168,7 @@ func (s *execEngine) nodeWorkMain(workerID uint64) {
 		select {
 		case <-stopC:
 			s.offloadNodeMap(nodes, rsm.FromStepWorker)
+			return
 		case <-ticker.C:
 			nodes, cci = s.loadNodes(workerID, cci, nodes)
 			s.execNodes(workerID, make(map[uint64]struct{}), nodes, stopC)
