@@ -216,11 +216,12 @@ func (nh *NodeHost) SyncPropose(ctx context.Context, groupID uint64,
 
 // ReadLocalNode queries the paxos node identified by the input RequestState
 // instance.
-func (nh *NodeHost) ReadLocalNode(rs *RequestState, query []byte) ([]byte, error) {
-	if rs.node == nil {
-		panic("invalid rs")
+func (nh *NodeHost) ReadLocalNode(groupID uint64, query []byte) ([]byte, error) {
+	v, ok := nh.getGroupNotLocked(groupID)
+	if !ok {
+		return nil, ErrGroupNotFound
 	}
-	data, err := rs.node.sm.Lookup(query)
+	data, err := v.sm.Lookup(query)
 	if err == rsm.ErrGroupClosed {
 		return nil, ErrGroupClosed
 	}

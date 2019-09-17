@@ -99,7 +99,13 @@ func (i *instance) resetForNewInstance() {
 //Send ...
 func (i *instance) send(msg paxospb.PaxosMsg) {
 	msg.From = i.nodeID
-	i.msgs = append(i.msgs, msg)
+	if msg.To == i.nodeID {
+		// instance send msg to self
+		i.Handle(msg)
+	} else {
+		i.msgs = append(i.msgs, msg)
+	}
+	plog.Infof("instance send msg %+v", msg)
 }
 
 func (i *instance) addNode(nodeID uint64) {
@@ -157,6 +163,7 @@ func (i *instance) loadState(st paxospb.State) {
 }
 
 func (i *instance) Handle(msg paxospb.PaxosMsg) {
+	plog.Infof("instance handle msg %+v", msg)
 	i.handle(i, msg)
 }
 

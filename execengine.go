@@ -51,6 +51,7 @@ func (wr *workReady) getPartitioner() server.IPartitioner {
 }
 
 func (wr *workReady) groupReady(groupID uint64) {
+	plog.Infof("in the group ready, set %d ready", groupID)
 	idx := wr.partitioner.GetPartitionID(groupID)
 	readyMap := wr.readyMapList[idx]
 	readyMap.setGroupReady(groupID)
@@ -204,6 +205,10 @@ func (s *execEngine) execSMs(wokerID uint64,
 		node, ok := nodes[groupID]
 		if !ok || node.stopped() {
 			continue
+		}
+		if !node.initialized() {
+			plog.Infof("set initial status to 0")
+			node.setInitialStatus(0)
 		}
 		node.handleCommit(batch)
 	}
