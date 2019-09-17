@@ -210,7 +210,7 @@ func (rc *node) replayLog(groupID uint64, nodeID uint64) bool {
 		panic(err)
 	}
 	if ps.State != nil {
-		plog.Infof("%s logdb ents zs %d commit %d",
+		plog.Infof("%s logdb ents entryCount %d commit %d",
 			rc.describe(), ps.EntryCount, ps.State.Commit)
 		rc.logreader.SetState(*ps.State)
 	}

@@ -19,3 +19,18 @@ func (m *MessageBatch) SizeUpperLimit() int {
 	}
 	return l
 }
+
+// SizeUpperLimit returns the upper limit size of an entry.
+func (m *Entry) SizeUpperLimit() int {
+	l := 16 * 3
+	l += m.AcceptorState.SizeUpperLimit()
+	return l
+}
+
+// SizeUpperLimit returns the upper limit size of an entry.
+func (m *AcceptorState) SizeUpperLimit() int {
+	l := 16 * 6
+	l += 16 * 2
+	l += len(m.AccetpedValue)
+	return l
+}

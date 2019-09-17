@@ -46,11 +46,10 @@ func (r *RDB) recordEntries(wb IWriteBatch, groupID, nodeID uint64,
 	firstInstanceID := entries[0].AcceptorState.InstanceID
 	lastInstanceID := entries[len(entries)-1].AcceptorState.InstanceID
 
-	//FIXME: set the buff size to Limit
-	data := ctx.GetValueBuffer(1024)
 	key := ctx.GetKey()
 
 	for i := firstInstanceID; i <= lastInstanceID; i++ {
+		data := ctx.GetValueBuffer(uint64(entries[0].SizeUpperLimit()))
 		key.SetEntryKey(groupID, nodeID, i)
 		sz, err := entries[i-firstInstanceID].MarshalTo(data)
 		if err != nil {
@@ -310,7 +309,7 @@ func (r *RDB) listNodeInfo() ([]paxosio.NodeInfo, error) {
 	lastKey.setBootstrapKey(math.MaxUint64, math.MaxUint64)
 	ni := make([]paxosio.NodeInfo, 0)
 	op := func(key []byte, data []byte) (bool, error) {
-		gid, nid := parseNodeInfoKey(data)
+		gid, nid := parseNodeInfoKey(key)
 		ni = append(ni, paxosio.GetNodeInfo(gid, nid))
 		return true, nil
 	}
