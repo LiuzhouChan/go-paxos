@@ -51,7 +51,6 @@ func (wr *workReady) getPartitioner() server.IPartitioner {
 }
 
 func (wr *workReady) groupReady(groupID uint64) {
-	plog.Infof("in the group ready, set %d ready", groupID)
 	idx := wr.partitioner.GetPartitionID(groupID)
 	readyMap := wr.readyMapList[idx]
 	readyMap.setGroupReady(groupID)

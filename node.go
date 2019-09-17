@@ -284,7 +284,6 @@ func (rc *node) stepNode() (paxospb.Update, bool) {
 			return rc.getUpdate()
 		}
 	}
-	plog.Infof("not initialized")
 	return paxospb.Update{}, false
 }
 
