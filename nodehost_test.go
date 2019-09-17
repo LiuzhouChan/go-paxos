@@ -4,13 +4,16 @@ import (
 	"context"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/LiuzhouChan/go-paxos/config"
+	"github.com/LiuzhouChan/go-paxos/internal/logdb"
 	"github.com/LiuzhouChan/go-paxos/internal/tests"
 	"github.com/LiuzhouChan/go-paxos/internal/transport"
+	"github.com/LiuzhouChan/go-paxos/logger"
 	"github.com/LiuzhouChan/go-paxos/paxosio"
 	"github.com/LiuzhouChan/go-paxos/paxospb"
 	"github.com/LiuzhouChan/go-paxos/statemachine"
@@ -20,7 +23,24 @@ import (
 var (
 	singleNodeHostTestAddr = "localhost:26000"
 	singleNodeHostTestDir  = "single_nodehost_test_dir_safe_to_delete"
+	rdbTestDirectory       = "rdb_test_dir_safe_to_delete"
 )
+
+func getNewTestDB(dir string, lldir string) paxosio.ILogDB {
+	d := filepath.Join(rdbTestDirectory, dir)
+	lld := filepath.Join(rdbTestDirectory, lldir)
+	os.MkdirAll(d, 0777)
+	os.MkdirAll(lld, 0777)
+	db, err := logdb.OpenLogDB([]string{d}, []string{lld})
+	if err != nil {
+		panic(err.Error())
+	}
+	return db
+}
+
+func deleteTestRDB() {
+	os.RemoveAll(rdbTestDirectory)
+}
 
 func ExampleNewNodeHost() {
 	nhc := config.NodeHostConfig{
@@ -298,4 +318,310 @@ func TestNodeHostSyncIOAPIs(t *testing.T) {
 		}
 	}
 	singleNodeHostTest(t, tf)
+}
+
+func TestNodeHostGetNodeUser(t *testing.T) {
+	tf := func(t *testing.T, nh *NodeHost) {
+		n, err := nh.GetNodeUser(2)
+		if err != nil {
+			t.Errorf("failed to get NodeUser")
+		}
+		if n == nil {
+			t.Errorf("got a nil NodeUser")
+		}
+		n, err = nh.GetNodeUser(123)
+		if err != ErrGroupNotFound {
+			t.Errorf("didn't return expected err")
+		}
+		if n != nil {
+			t.Errorf("got unexpected node user")
+		}
+	}
+	singleNodeHostTest(t, tf)
+}
+
+func TestNodeHostNodeUserPropose(t *testing.T) {
+	tf := func(t *testing.T, nh *NodeHost) {
+		n, err := nh.GetNodeUser(2)
+		if err != nil {
+			t.Errorf("failed to get NodeUser")
+		}
+		rs, err := n.Propose(2, make([]byte, 16), time.Second)
+		if err != nil {
+			t.Errorf("fialed to make propose %v", err)
+		}
+		v := <-rs.CompletedC
+		if !v.Completed() {
+			t.Errorf("failed to complete proposal")
+		}
+	}
+	singleNodeHostTest(t, tf)
+}
+
+func TestNodeHostHasNodeInfo(t *testing.T) {
+	tf := func(t *testing.T, nh *NodeHost) {
+		if ok := nh.HasNodeInfo(2, 1); !ok {
+			t.Errorf("node info missing")
+		}
+		if ok := nh.HasNodeInfo(2, 2); ok {
+			t.Errorf("unexpected node info")
+		}
+	}
+	singleNodeHostTest(t, tf)
+}
+
+/******************************************************************************
+* Benchmarks
+******************************************************************************/
+
+func benchmarkNoPool128Allocs(b *testing.B, sz uint64) {
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			m := make([]byte, sz)
+			b.SetBytes(int64(sz))
+			if uint64(len(m)) < sz {
+				b.Errorf("len(m) < %d", sz)
+			}
+		}
+	})
+}
+
+func BenchmarkNoPool128Allocs512Bytes(b *testing.B) {
+	benchmarkNoPool128Allocs(b, 512)
+}
+
+func BenchmarkNoPool128Allocs15Bytes(b *testing.B) {
+	benchmarkNoPool128Allocs(b, 15)
+}
+
+func BenchmarkNoPool128Allocs2Bytes(b *testing.B) {
+	benchmarkNoPool128Allocs(b, 2)
+}
+
+func BenchmarkNoPool128Allocs16Bytes(b *testing.B) {
+	benchmarkNoPool128Allocs(b, 16)
+}
+
+func BenchmarkNoPool128Allocs17Bytes(b *testing.B) {
+	benchmarkNoPool128Allocs(b, 17)
+}
+
+// FIXME: opti it, but now it is a list dequeue
+func BenchmarkAddToEntryQueue(b *testing.B) {
+	b.ReportAllocs()
+	q := newEntryQueue(1000000)
+	entry := paxospb.Entry{}
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			q.add(entry)
+			q.get()
+		}
+	})
+}
+
+func benchmarkProposeN(b *testing.B, sz int) {
+	b.ReportAllocs()
+	data := make([]byte, sz)
+	p := &sync.Pool{}
+	p.New = func() interface{} {
+		obj := &RequestState{}
+		obj.CompletedC = make(chan RequestResult, 1)
+		obj.pool = p
+		return obj
+	}
+	q := newEntryQueue(2048)
+	pp := newPendingProposal(p, q, 1, 1, "localhost:9090", 200)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			b.SetBytes(int64(sz))
+			rs, err := pp.propose(data, nil, time.Second)
+			if err != nil {
+				b.Errorf("%v", err)
+			}
+			q.get()
+			pp.applied(rs.key, 1, false)
+			rs.Release()
+		}
+	})
+}
+
+func BenchmarkPropose16(b *testing.B) {
+	benchmarkProposeN(b, 16)
+}
+
+func BenchmarPropose128(b *testing.B) {
+	benchmarkProposeN(b, 128)
+}
+
+func BenchmarkPropose1024(b *testing.B) {
+	benchmarkProposeN(b, 1024)
+}
+
+func BenchmarkPendingProposalNextKey(b *testing.B) {
+	b.ReportAllocs()
+	p := &sync.Pool{}
+	p.New = func() interface{} {
+		obj := &RequestState{}
+		obj.CompletedC = make(chan RequestResult, 1)
+		obj.pool = p
+		return obj
+	}
+	q := newEntryQueue(2048)
+	pp := newPendingProposal(p, q, 1, 1, "localhost:9090", 200)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			pp.nextKey()
+		}
+	})
+}
+
+func benchmarkMarshalEntryN(b *testing.B, sz int) {
+	b.ReportAllocs()
+	e := paxospb.Entry{
+		Type: paxospb.ApplicationEntry,
+		Key:  123123123,
+		AcceptorState: paxospb.AcceptorState{
+			InstanceID: 12,
+			PromiseBallot: paxospb.BallotNumber{
+				ProposalID: 21,
+				NodeID:     1,
+			},
+			AcceptedBallot: paxospb.BallotNumber{
+				ProposalID: 21,
+				NodeID:     1,
+			},
+			AccetpedValue: make([]byte, sz),
+		},
+	}
+	data := make([]byte, e.Size())
+	for i := 0; i < b.N; i++ {
+		n, err := e.MarshalTo(data)
+		if n > len(data) {
+			b.Errorf("n > len(data)")
+		}
+		b.SetBytes(int64(n))
+		if err != nil {
+			b.Errorf("%v", err)
+		}
+	}
+}
+
+func BenchmarkMarshalEntry16(b *testing.B) {
+	benchmarkMarshalEntryN(b, 16)
+}
+
+func BenchmarkMarshalEntry128(b *testing.B) {
+	benchmarkMarshalEntryN(b, 128)
+}
+
+func BenchmarkMarshalEntry1024(b *testing.B) {
+	benchmarkMarshalEntryN(b, 1024)
+}
+
+func BenchmarkReadyGroup(b *testing.B) {
+	b.ReportAllocs()
+	rc := newReadyGroup()
+	b.RunParallel(func(pbt *testing.PB) {
+		for pbt.Next() {
+			rc.setGroupReady(1)
+		}
+	})
+}
+
+func BenchmarkFSyncLatency(b *testing.B) {
+	b.StopTimer()
+	l := logger.GetLogger("logdb")
+	l.SetLevel(logger.WARNING)
+	db := getNewTestDB("db", "lldb")
+	defer os.RemoveAll(rdbTestDirectory)
+	defer db.Close()
+	e := paxospb.Entry{
+		Type: paxospb.ApplicationEntry,
+		Key:  123123123,
+		AcceptorState: paxospb.AcceptorState{
+			InstanceID: 12,
+			PromiseBallot: paxospb.BallotNumber{
+				ProposalID: 21,
+				NodeID:     1,
+			},
+			AcceptedBallot: paxospb.BallotNumber{
+				ProposalID: 21,
+				NodeID:     1,
+			},
+			AccetpedValue: make([]byte, 8*1024),
+		},
+	}
+	u := paxospb.Update{
+		GroupID:       1,
+		NodeID:        1,
+		EntriesToSave: []paxospb.Entry{e},
+	}
+	rdbctx := db.GetLogDBThreadContext()
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		if err := db.SavePaxosState([]paxospb.Update{u}, rdbctx); err != nil {
+			b.Fatalf("%v", err)
+		}
+		rdbctx.Reset()
+	}
+}
+
+func benchmarkSavePaxosState(b *testing.B, sz int) {
+	b.ReportAllocs()
+	b.StopTimer()
+	l := logger.GetLogger("logdb")
+	l.SetLevel(logger.WARNING)
+	db := getNewTestDB("db", "lldb")
+	defer os.RemoveAll(rdbTestDirectory)
+	defer db.Close()
+	e := paxospb.Entry{
+		Type: paxospb.ApplicationEntry,
+		Key:  123123123,
+		AcceptorState: paxospb.AcceptorState{
+			InstanceID: 12,
+			PromiseBallot: paxospb.BallotNumber{
+				ProposalID: 21,
+				NodeID:     1,
+			},
+			AcceptedBallot: paxospb.BallotNumber{
+				ProposalID: 21,
+				NodeID:     1,
+			},
+			AccetpedValue: make([]byte, 8*1024),
+		},
+	}
+	bytes := e.Size() * 128
+	u := paxospb.Update{
+		GroupID: 1,
+		NodeID:  1,
+	}
+	iidx := e.AcceptorState.InstanceID
+	for i := uint64(0); i < 128; i++ {
+		e.AcceptorState.InstanceID = iidx + i
+		u.EntriesToSave = append(u.EntriesToSave, e)
+	}
+	b.StartTimer()
+	b.RunParallel(func(pbt *testing.PB) {
+		rdbctx := db.GetLogDBThreadContext()
+		for pbt.Next() {
+			rdbctx.Reset()
+			if err := db.SavePaxosState([]paxospb.Update{u}, rdbctx); err != nil {
+				b.Errorf("%v", err)
+			}
+			b.SetBytes(int64(bytes))
+		}
+	})
+}
+
+func BenchmarkSaveRaftState16(b *testing.B) {
+	benchmarkSavePaxosState(b, 16)
+}
+
+func BenchmarkSaveRaftState128(b *testing.B) {
+	benchmarkSavePaxosState(b, 128)
+}
+
+func BenchmarkSaveRaftState1024(b *testing.B) {
+	benchmarkSavePaxosState(b, 1024)
 }

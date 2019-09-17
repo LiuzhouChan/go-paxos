@@ -615,6 +615,43 @@ func (nh *NodeHost) startGroup(nodes map[uint64]string,
 	return nil
 }
 
+// GetNodeUser returns an INodeUser instance ready to be used to directly make
+// proposals.
+func (nh *NodeHost) GetNodeUser(groupID uint64) (INodeUser, error) {
+	v, ok := nh.getGroup(groupID)
+	if !ok {
+		return nil, ErrGroupNotFound
+	}
+	nu := &nodeUser{
+		nh:           nh,
+		node:         v,
+		setNodeReady: nh.execEngine.setNodeReady,
+	}
+	return nu, nil
+}
+
+// HasNodeInfo returns a boolean value indicating whether the specified node
+// has been bootstrapped on the current NodeHost instance.
+func (nh *NodeHost) HasNodeInfo(groupID uint64, nodeID uint64) bool {
+	_, err := nh.logdb.GetBootstrapInfo(groupID, nodeID)
+	if err == paxosio.ErrNoBootstrapInfo {
+		return false
+	}
+	if err != nil {
+		panic(err)
+	}
+	return true
+}
+
+// INodeUser is the interface implemented by a Paxos node user type. A Paxos node
+// user can be used to directly initiate proposals operations
+// without locating the Paxos node in NodeHost's node list first. It is useful
+// when doing bulk load operations on selected groups.
+type INodeUser interface {
+	Propose(groupID uint64, cmd []byte,
+		timeout time.Duration) (*RequestState, error)
+}
+
 type nodeUser struct {
 	nh           *NodeHost
 	node         *node
