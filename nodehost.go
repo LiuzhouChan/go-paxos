@@ -411,7 +411,7 @@ func (nh *NodeHost) sendTickMessage(groups []*node,
 	m := paxospb.PaxosMsg{MsgType: paxospb.LocalTick}
 	for _, n := range groups {
 		q, ok := queues[n.groupID]
-		if !ok || nh.initialized() {
+		if !ok || !nh.initialized() {
 			continue
 		}
 		q.Add(m)

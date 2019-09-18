@@ -8,15 +8,15 @@ import (
 type state uint64
 
 const (
-	preparing state = iota
+	closing state = iota
+	preparing
 	accepting
-	closing
 )
 
 var stateNames = [...]string{
+	"Closing",
 	"Preparing",
 	"Accepting",
-	"Closing",
 }
 
 //String ....
@@ -50,6 +50,7 @@ func newProposer(i IInstance, l *learner) *proposer {
 		instance:   i,
 		learner:    l,
 		proposalID: 1,
+		st:         closing,
 		value:      []byte{},
 	}
 	return p
@@ -160,10 +161,8 @@ func (p *proposer) prepare(needNewBallot bool) {
 		InstanceID: p.instanceID,
 		ProposalID: p.proposalID,
 	}
-	plog.Infof("[prepare] msg: %+v", msg)
 	p.votes = make(map[uint64]bool)
 	remotes := p.instance.getRemotes()
-	plog.Infof("[prepare] remotes:%v", remotes)
 	for nid := range remotes {
 		msg.To = nid
 		p.instance.send(msg)

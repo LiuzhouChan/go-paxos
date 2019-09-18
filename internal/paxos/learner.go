@@ -70,7 +70,6 @@ func (l *learner) timeForAskForLearn() bool {
 }
 
 func (l *learner) askForLearn() {
-	// plog.Infof("start ask for learn")
 	msg := paxospb.PaxosMsg{
 		InstanceID: l.instanceID,
 		MsgType:    paxospb.PaxosLearnerAskForLearn,

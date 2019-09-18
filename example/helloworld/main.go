@@ -60,7 +60,7 @@ func main() {
 		nodeAddr = peers[uint64(*nodeID)]
 	}
 	fmt.Fprintf(os.Stdout, "node address: %s\n", nodeAddr)
-	logger.GetLogger("paxos").SetLevel(logger.INFO)
+	logger.GetLogger("paxos").SetLevel(logger.WARNING)
 	logger.GetLogger("rsm").SetLevel(logger.WARNING)
 	logger.GetLogger("transport").SetLevel(logger.WARNING)
 	rc := config.Config{
