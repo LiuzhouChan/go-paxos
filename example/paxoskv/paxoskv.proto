@@ -1,0 +1,43 @@
+syntax = "proto2";
+
+package paxoskv;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+service PhxKVServer {
+	rpc Put(KVRequest) returns (KVResponse) { }
+	rpc GetLocal(KVRequest) returns (KVResponse) { }
+	rpc Delete(KVRequest) returns (KVResponse) { }
+}
+
+message KVRequest
+{
+	enum OperatorType {
+		READ = 0;
+		DELETE = 1;
+		WRITE = 2;
+	}
+	optional string key = 1 [(gogoproto.nullable) = false];
+	optional bytes value = 2;
+	optional uint64 version = 3 [(gogoproto.nullable) = false];
+	optional OperatorType operator = 4 [(gogoproto.nullable) = false];
+	optional uint32 sid = 5 [(gogoproto.nullable) = false];
+};
+
+message KVData
+{
+	optional bytes value = 1;
+	optional uint64 version = 2 [(gogoproto.nullable) = false];
+	optional bool isdeleted = 3 [(gogoproto.nullable) = false];
+};
+
+message KVResponse
+{
+	enum Code {
+		OK = 0;
+		KEY_NOT_EXIST = 1;
+		VERSION_CONFLICT = 2;
+	  }
+	optional KVData data = 1 [(gogoproto.nullable) = false];
+	optional Code code = 2 [(gogoproto.nullable) = false];
+};
