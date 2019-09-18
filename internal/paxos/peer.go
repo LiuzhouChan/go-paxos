@@ -114,9 +114,10 @@ func getUpdate(i *instance, ppst paxospb.State,
 	moreEntriesToApply bool) paxospb.Update {
 
 	ud := paxospb.Update{
-		GroupID:  i.groupID,
-		NodeID:   i.nodeID,
-		Messages: i.msgs,
+		GroupID:       i.groupID,
+		NodeID:        i.nodeID,
+		Messages:      i.msgs,
+		EntriesToSave: i.log.entriesToSave(),
 	}
 
 	if moreEntriesToApply {

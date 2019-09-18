@@ -30,6 +30,7 @@ type node struct {
 	commitC             chan<- rsm.Commit
 	mq                  *server.MessageQueue
 	lastApplied         uint64
+	shouldReplayLog     bool
 	commitReady         func(uint64)
 	sendPaxosMessage    func(paxospb.PaxosMsg)
 	sm                  *rsm.StateMachine
@@ -214,11 +215,13 @@ func (rc *node) replayLog(groupID uint64, nodeID uint64) bool {
 			rc.describe(), ps.EntryCount, ps.State.Commit)
 		rc.logreader.SetState(*ps.State)
 	}
+	plog.Infof("ps.FirstInstanceID %d, ps.EntryCount %d", ps.FirstInstanceID, ps.EntryCount)
 	rc.logreader.SetRange(ps.FirstInstanceID, ps.EntryCount)
 	newNode := true
 	if ps.EntryCount > 0 || ps.State != nil {
 		newNode = false
 	}
+	rc.shouldReplayLog = true
 	return newNode
 }
 
@@ -293,6 +296,10 @@ func (rc *node) handleEvents() bool {
 		hasEvent = true
 	}
 	if rc.handleProposals() {
+		hasEvent = true
+	}
+	if rc.shouldReplayLog {
+		rc.shouldReplayLog = false
 		hasEvent = true
 	}
 	if hasEvent {

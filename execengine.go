@@ -286,12 +286,17 @@ func (s *execEngine) execNodes(workerID uint64,
 		node := nodes[ud.GroupID]
 		node.sendMessages(ud.Messages)
 	}
+	c := int64(0)
+	for _, ud := range nodeUpdates {
+		c += int64(len(ud.EntriesToSave))
+	}
 	p.step.end()
 	p.recordEntryCount(nodeUpdates)
 	p.save.start()
 	if err := s.logdb.SavePaxosState(nodeUpdates, nodeCtx); err != nil {
 		panic(err)
 	}
+
 	p.save.end()
 	p.cs.start()
 	for _, ud := range nodeUpdates {
