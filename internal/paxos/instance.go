@@ -159,7 +159,7 @@ func (i *instance) loadState(st paxospb.State) {
 		plog.Panicf("got out of range state, st.commit %d, range[%d, %d]", st.Commit, i.log.committed, i.log.lastInstanceID())
 	}
 	i.log.committed = st.Commit
-	i.instanceID = st.AcceptorState.InstanceID
+	i.instanceID = st.Commit
 }
 
 func (i *instance) Handle(msg paxospb.PaxosMsg) {

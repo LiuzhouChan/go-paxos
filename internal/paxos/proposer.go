@@ -136,11 +136,13 @@ func (p *proposer) newValue(key uint64, value []byte) {
 		p.key = key
 		p.value = stringutil.BytesDeepCopy(value)
 	}
+	plog.Infof("[newValue]p.key %v, p.value %v", p.key, p.value)
 	// set timeout ddl
 	if p.canSkipPrepare && !p.rejectBySomeone {
-		plog.Infof("skip prepare, direct start accept")
+		plog.Infof("[newValue]skip prepare, direct start accept")
 		p.accept()
 	} else {
+		plog.Infof("[newValue] prepare %v", p.rejectBySomeone)
 		p.prepare(p.rejectBySomeone)
 	}
 }
@@ -158,8 +160,10 @@ func (p *proposer) prepare(needNewBallot bool) {
 		InstanceID: p.instanceID,
 		ProposalID: p.proposalID,
 	}
+	plog.Infof("[prepare] msg: %+v", msg)
 	p.votes = make(map[uint64]bool)
 	remotes := p.instance.getRemotes()
+	plog.Infof("[prepare] remotes:%v", remotes)
 	for nid := range remotes {
 		msg.To = nid
 		p.instance.send(msg)

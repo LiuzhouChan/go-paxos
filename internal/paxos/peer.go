@@ -29,8 +29,14 @@ func LaunchPeer(config *config.Config, logdb ILogDB,
 	_, lastInstance := logdb.GetRange()
 	plog.Infof("LaunchPeer, lastInstanceID %d, initial %t, newNode %t",
 		lastInstance, initial, newNode)
-	if initial && newNode {
-		bootstrap(i, addresses)
+	// in the case of not realize the config change function, we all bootstrap the peers right now
+	// if initial && newNode {
+	bootstrap(i, addresses)
+	// }
+	if !newNode {
+		// after replay log, just set for newInstance
+		plog.Infof("it is not a new node, reset it for new instance")
+		i.resetForNewInstance()
 	}
 	if lastInstance == 0 {
 		p.prevState = emptyState

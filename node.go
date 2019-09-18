@@ -219,9 +219,9 @@ func (rc *node) replayLog(groupID uint64, nodeID uint64) bool {
 	rc.logreader.SetRange(ps.FirstInstanceID, ps.EntryCount)
 	newNode := true
 	if ps.EntryCount > 0 || ps.State != nil {
+		rc.shouldReplayLog = true
 		newNode = false
 	}
-	rc.shouldReplayLog = true
 	return newNode
 }
 
