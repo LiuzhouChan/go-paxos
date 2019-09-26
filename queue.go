@@ -77,10 +77,10 @@ func (q *queueBuffer) ensureWritableBytes() {
 		copy(q.buffer[0:], q.buffer[q.readerIndex:q.writerIndex])
 		q.readerIndex = 0
 		q.writerIndex = q.readerIndex + readable
-		// n := uint64(len(q.buffer))
-		// for i := q.writerIndex; i < n; i++ {
-		// 	q.buffer[i] = nil
-		// }
+		n := uint64(len(q.buffer))
+		for i := q.writerIndex; i < n; i++ {
+			q.buffer[i] = nil
+		}
 	}
 }
 
@@ -147,8 +147,8 @@ func (q *queue) dequeue() interface{} {
 
 type entryQueue struct {
 	size uint64
-	q    *queue
-	// q       *queueBuffer
+	// q    *queue
+	q       *queueBuffer
 	stopped bool
 	mu      sync.Mutex
 }
@@ -156,8 +156,8 @@ type entryQueue struct {
 func newEntryQueue(size uint64) *entryQueue {
 	e := &entryQueue{
 		size: size,
-		q:    newQueue(),
-		// q: newQueueBuffer(size * 2),
+		// q:    newQueue(),
+		q: newQueueBuffer(size * 2),
 	}
 	return e
 }
@@ -170,7 +170,7 @@ func (q *entryQueue) close() {
 
 func (q *entryQueue) add(ent paxospb.Entry) (bool, bool) {
 	q.mu.Lock()
-	if q.q.size >= q.size {
+	if q.q.readableSlices() >= q.size {
 		q.mu.Unlock()
 		return false, q.stopped
 	}
@@ -178,18 +178,18 @@ func (q *entryQueue) add(ent paxospb.Entry) (bool, bool) {
 		q.mu.Unlock()
 		return false, true
 	}
-	q.q.enqueue(ent)
+	q.q.append(ent)
 	q.mu.Unlock()
 	return true, false
 }
 
 func (q *entryQueue) get() (paxospb.Entry, bool) {
 	q.mu.Lock()
-	if q.stopped || q.q.empty() {
+	if q.stopped || q.q.readableSlices() <= 0 {
 		q.mu.Unlock()
 		return paxospb.Entry{}, false
 	}
-	ent := q.q.dequeue()
+	ent := q.q.peek()
 	q.mu.Unlock()
 	return ent.(paxospb.Entry), true
 }
