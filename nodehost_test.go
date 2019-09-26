@@ -446,11 +446,12 @@ func benchmarkProposeN(b *testing.B, sz int) {
 	})
 }
 
+// BenchmarkPropose16-8 1000000 2014 ns/op  7.94 MB/s  256 B/op  4 allocs/op
 func BenchmarkPropose16(b *testing.B) {
 	benchmarkProposeN(b, 16)
 }
 
-func BenchmarPropose128(b *testing.B) {
+func BenchmarkPropose128(b *testing.B) {
 	benchmarkProposeN(b, 128)
 }
 

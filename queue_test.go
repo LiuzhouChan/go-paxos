@@ -1,24 +1,78 @@
-// // Copyright 2017-2019 Lei Ni (nilei81@gmail.com)
-// //
-// // Licensed under the Apache License, Version 2.0 (the "License");
-// // you may not use this file except in compliance with the License.
-// // You may obtain a copy of the License at
-// //
-// //     http://www.apache.org/licenses/LICENSE-2.0
-// //
-// // Unless required by applicable law or agreed to in writing, software
-// // distributed under the License is distributed on an "AS IS" BASIS,
-// // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// // See the License for the specific language governing permissions and
-// // limitations under the License.
-
 package paxos
 
-// import (
-// 	"testing"
+import (
+	"testing"
+)
 
-// 	"github.com/LiuzhouChan/go-paxos/paxospb"
-// )
+func TestQueueCanBeCreate(t *testing.T) {
+	q := newQueue()
+	if q.head != nil {
+		t.Errorf("the head should be nil")
+	}
+	if q.tail != nil {
+		t.Errorf("the tail should be nil")
+	}
+	if q.size != 0 {
+		t.Errorf("q.size is %d, want 0", q.size)
+	}
+}
+
+func TestEnqueueAndDequeue(t *testing.T) {
+	q := newQueue()
+	v1 := 1
+	v2 := 2
+	q.enqueue(v1)
+	if q.head.val != v1 {
+		t.Errorf("q.head.val is %v, want %v", q.head.val, v1)
+	}
+	if q.tail.val != v1 {
+		t.Errorf("q.tail.val is %v, want %v", q.tail.val, v1)
+	}
+	if q.size != 1 {
+		t.Errorf("q.size is %d, want 1", q.size)
+	}
+	q.enqueue(v2)
+	if q.head.val != v1 {
+		t.Errorf("q.head.val is %v, want %v", q.head.val, v1)
+	}
+	if q.tail.val != v2 {
+		t.Errorf("q.tail.val is %v, want %v", q.tail.val, v2)
+	}
+	if q.size != 2 {
+		t.Errorf("the size is %d, want 2", q.size)
+	}
+	v := q.dequeue()
+	if v != v1 {
+		t.Errorf("v is %v, want %v", v, v1)
+	}
+	if q.head.val != v2 {
+		t.Errorf("q.head.val is %v, wnat %v", q.head.val, v2)
+	}
+	if q.tail.val != v2 {
+		t.Errorf("q.tail.val is %v, want %v", q.tail.val, v2)
+	}
+	if q.size != 1 {
+		t.Errorf("q.size is %d, want 1", q.size)
+	}
+	q.dequeue()
+	if q.head != nil || q.tail != nil {
+		t.Errorf("the q.head and q.tail should be nil")
+	}
+	if q.size != 0 {
+		t.Errorf("q.size is %d, want 0", q.size)
+	}
+}
+
+func TestDequeueFromEmptyQueue(t *testing.T) {
+	defer func() {
+		if err := recover(); err != nil {
+			return
+		}
+		t.Errorf("panic recover faile")
+	}()
+	q := newQueue()
+	q.dequeue()
+}
 
 // func TestEntryQueueCanBeCreated(t *testing.T) {
 // 	q := newEntryQueue(5, 0)
