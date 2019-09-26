@@ -407,7 +407,6 @@ func BenchmarkNoPool128Allocs17Bytes(b *testing.B) {
 	benchmarkNoPool128Allocs(b, 17)
 }
 
-// FIXME: opti it, but now it is a list dequeue
 func BenchmarkAddToEntryQueue(b *testing.B) {
 	b.ReportAllocs()
 	q := newEntryQueue(1000000)
@@ -590,7 +589,7 @@ func benchmarkSavePaxosState(b *testing.B, sz int) {
 				ProposalID: 21,
 				NodeID:     1,
 			},
-			AccetpedValue: make([]byte, 8*1024),
+			AccetpedValue: make([]byte, sz),
 		},
 	}
 	bytes := e.Size() * 128
