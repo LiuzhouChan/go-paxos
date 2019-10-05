@@ -1,8 +1,8 @@
-# go-paxos - Go 多组 Paxos 库
+# go-paxos --- Go 多组 Paxos 库
 
 
 ## 关于
-go-paxos 是一个Go实现的多组Paxos共识算法库
+go-paxos 是一个 Go 实现的多组Paxos共识算法库
 
 ## 特性
 - 基于Lamport的 Paxos Made Simple 进行工程化，不进行任何算法变种。
@@ -11,8 +11,8 @@ go-paxos 是一个Go实现的多组Paxos共识算法库
 - 节点主动向其他节点进行点对点快速学习。
 
 ## 待完成
-- snapshot 功能的添加。
-- 运行过程中节点的增减。
+- snapshot。
+- 运行过程中节点的动态变更。
 - master 选举。
 
 ## 性能
