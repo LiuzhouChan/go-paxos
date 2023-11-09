@@ -16,7 +16,7 @@ type learner struct {
 	highestSeenInstanceIDFromNodeID uint64
 
 	askForLearnTick    uint64
-	askFroLearnTimeout uint64
+	askForLearnTimeout uint64
 
 	isLearned    bool
 	key          uint64
@@ -66,7 +66,7 @@ func (l *learner) tick() {
 }
 
 func (l *learner) timeForAskForLearn() bool {
-	return l.askForLearnTick >= l.askFroLearnTimeout
+	return l.askForLearnTick >= l.askForLearnTimeout
 }
 
 func (l *learner) askForLearn() {

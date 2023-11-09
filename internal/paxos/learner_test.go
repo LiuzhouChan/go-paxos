@@ -10,7 +10,7 @@ import (
 func getTestLearner() *learner {
 	acceptor := getTestAcceptor()
 	l := newLearner(acceptor.instance, acceptor)
-	l.askFroLearnTimeout = 10
+	l.askForLearnTimeout = 10
 	l.instanceID = l.instance.getLog().committed
 	return l
 }
@@ -33,7 +33,7 @@ func TestInit(t *testing.T) {
 
 func TestAskForLearn(t *testing.T) {
 	l := getTestLearner()
-	for i := uint64(0); i < l.askFroLearnTimeout; i++ {
+	for i := uint64(0); i < l.askForLearnTimeout; i++ {
 		l.tick()
 	}
 	if l.askForLearnTick != 0 {
