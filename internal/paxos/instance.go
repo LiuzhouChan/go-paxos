@@ -75,7 +75,7 @@ func newInstance(c *config.Config, logdb ILogDB) *instance {
 	acceptor.state = st.AcceptorState
 
 	learner.instanceID = i.instanceID
-	learner.askFroLearnTimeout = c.AskForLearnRTT
+	learner.askForLearnTimeout = c.AskForLearnRTT
 
 	proposer.instanceID = i.instanceID
 	proposer.proposalID = st.AcceptorState.PromiseBallot.ProposalID + 1
